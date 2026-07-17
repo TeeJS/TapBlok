@@ -1,5 +1,6 @@
 package com.cj.tapblok
 
+import android.Manifest
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
@@ -25,6 +26,7 @@ import androidx.core.content.edit
 import com.cj.tapblok.database.Defaults
 import com.cj.tapblok.database.TagUnlockMode
 import com.cj.tapblok.ui.theme.TapBlokTheme
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 object AppSettings {
@@ -51,6 +53,12 @@ object AppSettings {
     const val KEY_DEFAULT_TAG_UNLOCK_MODE = "default_tag_unlock_mode"
     const val KEY_DEFAULT_GRACE_MINUTES = "default_grace_minutes"
     const val KEY_DAILY_RESET_MINUTES = "daily_reset_minutes"
+
+    // Geofenced strict mode. Stored as strings because SharedPreferences has no Double.
+    const val KEY_GEOFENCE_ENABLED = "geofence_enabled"
+    const val KEY_HOME_LAT = "home_lat"
+    const val KEY_HOME_LON = "home_lon"
+    const val KEY_HOME_RADIUS_M = "home_radius_metres"
 
     const val DEFAULT_OVERRIDE_SECONDS = 90
     const val DEFAULT_BREAKS_ALLOWED = 3
@@ -89,9 +97,39 @@ object AppSettings {
         )
     }
 
+    /**
+     * 150m. Small enough to mean "at home" rather than "in the neighbourhood", but it leans on
+     * Wi-Fi being on: the network provider typically returns 20–50m, comfortably inside it.
+     * With Wi-Fi off and GPS cold indoors, expect fixes to be rejected as too coarse and
+     * strict mode to read as away. If that happens too often the lever is a **larger radius**,
+     * not a looser accuracy gate — loosening the gate just reintroduces silent noise.
+     */
+    const val DEFAULT_HOME_RADIUS_M = 150
+
     /** Minutes since local midnight at which the daily cap rolls over. */
     fun dailyResetMinutes(context: Context): Int =
         prefs(context).getInt(KEY_DAILY_RESET_MINUTES, DEFAULT_DAILY_RESET_MINUTES)
+
+    fun geofenceEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_GEOFENCE_ENABLED, false)
+
+    /** Home as (lat, lon), or null when never captured. */
+    fun homeLocation(context: Context): Pair<Double, Double>? {
+        val p = prefs(context)
+        val lat = p.getString(KEY_HOME_LAT, null)?.toDoubleOrNull() ?: return null
+        val lon = p.getString(KEY_HOME_LON, null)?.toDoubleOrNull() ?: return null
+        return lat to lon
+    }
+
+    fun setHomeLocation(context: Context, lat: Double, lon: Double) {
+        prefs(context).edit {
+            putString(KEY_HOME_LAT, lat.toString())
+            putString(KEY_HOME_LON, lon.toString())
+        }
+    }
+
+    fun homeRadiusMetres(context: Context): Int =
+        prefs(context).getInt(KEY_HOME_RADIUS_M, DEFAULT_HOME_RADIUS_M)
 
     /** "25 min", "1h 30m", or [zeroLabel] when minutes is 0 and a meaning was supplied. */
     fun formatMinutes(minutes: Int, zeroLabel: String? = null): String = when {
@@ -148,6 +186,19 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     var stopEnabled by remember { mutableStateOf(prefs.getBoolean(AppSettings.KEY_SCHEDULE_STOP_ENABLED, true)) }
     var stopMinutes by remember { mutableStateOf(prefs.getInt(AppSettings.KEY_SCHEDULE_STOP_MINUTES, AppSettings.DEFAULT_STOP_MINUTES)) }
     var daysMask by remember { mutableStateOf(prefs.getInt(AppSettings.KEY_SCHEDULE_DAYS, AppSettings.DEFAULT_DAYS_MASK)) }
+
+    val scope = rememberCoroutineScope()
+    var geofenceEnabled by remember { mutableStateOf(AppSettings.geofenceEnabled(context)) }
+    var homeRadius by remember { mutableStateOf(AppSettings.homeRadiusMetres(context)) }
+    var capturingHome by remember { mutableStateOf(false) }
+    var homeStatus by remember {
+        mutableStateOf(
+            if (AppSettings.homeLocation(context) != null) "Set" else "Not set — strict mode won't apply"
+        )
+    }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* state re-reads on the next recomposition */ }
 
     val initialDefaults = remember { AppSettings.defaults(context) }
     var defaultSession by remember { mutableStateOf(initialDefaults.sessionMinutes) }
@@ -318,6 +369,92 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                SettingsSwitchRow(
+                    label = "Only when I'm home",
+                    caption = "Your tag lives at home. Away from it, strict mode would lock you " +
+                        "out with no way to comply — so this relaxes it when you're not there.",
+                    checked = geofenceEnabled,
+                    enabled = editable,
+                    onCheckedChange = {
+                        geofenceEnabled = it
+                        prefs.edit { putBoolean(AppSettings.KEY_GEOFENCE_ENABLED, it) }
+                        if (it && !HomeGeofence.hasPermission(context)) {
+                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                    }
+                )
+
+                if (geofenceEnabled) {
+                    if (!HomeGeofence.hasPermission(context)) {
+                        Text(
+                            text = "Location permission is needed. Without it, TapBlok can't tell " +
+                                "whether you're home, and strict mode won't apply.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Home", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = homeStatus,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(
+                            enabled = editable && !capturingHome,
+                            onClick = {
+                                capturingHome = true
+                                scope.launch {
+                                    val fix = HomeGeofence.captureHere(context)
+                                    capturingHome = false
+                                    homeStatus = if (fix != null) {
+                                        AppSettings.setHomeLocation(context, fix.first, fix.second)
+                                        "Set from your current location"
+                                    } else {
+                                        "Couldn't get a location accurate enough — try again near a window, with Wi-Fi on"
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(if (capturingHome) "Locating…" else "Use current")
+                        }
+                    }
+
+                    MinutesRow(
+                        label = "Radius",
+                        caption = "How close counts as home, in metres",
+                        minutes = homeRadius,
+                        enabled = editable,
+                        isDefault = homeRadius == AppSettings.DEFAULT_HOME_RADIUS_M,
+                        onPicked = {
+                            homeRadius = it
+                            prefs.edit { putInt(AppSettings.KEY_HOME_RADIUS_M, it) }
+                        }
+                    )
+                    Text(
+                        text = "Shown in metres, not minutes. 150m leans on Wi-Fi being on at " +
+                            "home, where a fix is usually accurate to 20–50m. With Wi-Fi off and " +
+                            "GPS cold indoors, fixes are often only accurate to 500m+ — TapBlok " +
+                            "rejects those rather than guess, and treats you as away. If that " +
+                            "happens too often, raise this rather than trust a vaguer fix.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "If TapBlok can't tell where you are, it treats you as away and " +
+                            "strict mode doesn't apply — so you're never stranded. The trade-off " +
+                            "is that turning location off also turns strict mode off.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
 

@@ -73,8 +73,6 @@ class BlockingActivity : ComponentActivity() {
 
         blockedPackage = intent.getStringExtra("BLOCKED_APP_PACKAGE_NAME")
         val packageName = blockedPackage ?: "An app"
-        val prefs = AppSettings.prefs(this)
-        val strictMode = prefs.getBoolean(AppSettings.KEY_STRICT_MODE, false)
         val lockReason = intent.getStringExtra(AppMonitoringService.EXTRA_LOCK_REASON)
             ?.let { runCatching { LockState.valueOf(it) }.getOrNull() }
             ?: LockState.SESSION_LOCKED
@@ -94,6 +92,12 @@ class BlockingActivity : ComponentActivity() {
 
         setContent {
             TapBlokTheme {
+                // Resolving strict mode can need a location fix, so it can't be read inline.
+                // Start false: this only gates showing an extra unlock affordance, so a brief
+                // wait shows less, never more.
+                var strictMode by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) { strictMode = strictModeApplies(this@BlockingActivity) }
+
                 BlockingScreen(
                     packageName = packageName,
                     strictMode = strictMode,

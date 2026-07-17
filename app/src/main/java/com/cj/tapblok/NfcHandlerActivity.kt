@@ -11,6 +11,8 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class NfcHandlerActivity : ComponentActivity() {
 
@@ -24,40 +26,58 @@ class NfcHandlerActivity : ComponentActivity() {
         handleNfcIntent()
     }
 
+    /**
+     * Each path finishes itself. Deciding what a tag means can now require a location fix, so
+     * [handleValidTag] may go async — an unconditional finish() here would cancel its
+     * coroutine and silently drop the tap.
+     */
     private fun handleNfcIntent() {
-        if (NfcAdapter.ACTION_NDEF_DISCOVERED == intent.action) {
-            val messages = intent.getParcelableArrayExtraCompat<NdefMessage>(NfcAdapter.EXTRA_NDEF_MESSAGES)
-            if (!messages.isNullOrEmpty()) {
-                val ndefMessage = messages[0] as NdefMessage
-                if (ndefMessage.records.isEmpty()) {
-                    Log.w("NfcHandlerActivity", "NFC message has no records.")
-                    finish()
-                    return
-                }
-                val record = ndefMessage.records[0]
-
-                if (String(record.type, Charsets.UTF_8) != NfcWriteActivity.NFC_MIME_TYPE) {
-                    Log.w("NfcHandlerActivity", "Ignoring NFC tag with unexpected MIME type.")
-                    finish()
-                    return
-                }
-
-                Log.d("NfcHandlerActivity", "Valid TapBlok NFC tag detected.")
-                handleValidTag()
-            }
+        if (NfcAdapter.ACTION_NDEF_DISCOVERED != intent.action) {
+            finish()
+            return
         }
-        // Finish the activity immediately since it has no UI
-        finish()
+
+        val messages = intent.getParcelableArrayExtraCompat<NdefMessage>(NfcAdapter.EXTRA_NDEF_MESSAGES)
+        if (messages.isNullOrEmpty()) {
+            finish()
+            return
+        }
+
+        val ndefMessage = messages[0] as NdefMessage
+        if (ndefMessage.records.isEmpty()) {
+            Log.w("NfcHandlerActivity", "NFC message has no records.")
+            finish()
+            return
+        }
+
+        if (String(ndefMessage.records[0].type, Charsets.UTF_8) != NfcWriteActivity.NFC_MIME_TYPE) {
+            Log.w("NfcHandlerActivity", "Ignoring NFC tag with unexpected MIME type.")
+            finish()
+            return
+        }
+
+        Log.d("NfcHandlerActivity", "Valid TapBlok NFC tag detected.")
+        handleValidTag()
     }
 
     private fun handleValidTag() {
         if (!isServiceRunning(this, AppMonitoringService::class.java)) {
             startMonitoringService(this)
             Toast.makeText(this, "Monitoring started.", Toast.LENGTH_SHORT).show()
+            finish()
             return
         }
 
-        val strictMode = AppSettings.prefs(this).getBoolean(AppSettings.KEY_STRICT_MODE, false)
+        // Deciding this can need a location fix, so it can't happen on the main thread. The
+        // activity is translucent and has no UI, so there's nothing to keep on screen while
+        // it resolves.
+        lifecycleScope.launch {
+            routeTag(strictModeApplies(this@NfcHandlerActivity))
+            finish()
+        }
+    }
+
+    private fun routeTag(strictMode: Boolean) {
         val blockedPackage = AppForeground.blockedPackage
         when {
             // On a block screen the tag means "free this app" — one of the two unlock paths
