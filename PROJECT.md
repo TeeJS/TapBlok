@@ -390,7 +390,9 @@ Deferred by choice, revisit if reality disagrees:
 | 7 · Geofenced strict mode | UI + **accuracy-gate rejection verified**; home-capture can't complete indoors (real-world, not a bug); HOME/AWAY presence path still unverified |
 | 10a · PiP pause | Accepted as-is by the user — closed |
 | Radius display bug | Found + fixed + verified: was formatting metres as "24h" |
-| v2 · Groups UI | Not started |
+| v2 · Groups UI | **Done, verified on device 2026-07-17** — create/rename/members/limits UI, plus the charter's group acceptance tests live: cross-app shared lock (AccuWeather blocked on time YouTube spent), group-wide tag unlock (session 60038→0), daily total untouched by the tag |
+| Tracker intra-app blindness | Found during the group test, **fixed + verified**: closers now match the open *activity*, not just the package — a trailing STOPPED from a previous activity no longer kills tracking (AccuWeather's onboarding froze accrual and blocking until an app switch) |
+| Strict tag-stop async regression | Found + fixed + verified: visibility snapshotted at tap time; location asks all providers, not GPS-only |
 
 **Still needs the user, next session:**
 - Tag tap on a block screen to prove SKIP_THE_WAIT clears the session (accounting is unit-tested; only the wiring is unproven).

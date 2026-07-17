@@ -53,7 +53,8 @@ class UsageEventReader(private val context: Context) {
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             mapType(event.eventType)?.let { type ->
-                tracker.accept(type, event.packageName, event.timeStamp)?.let(intervals::add)
+                tracker.accept(type, event.packageName, event.timeStamp, event.className)
+                    ?.let(intervals::add)
             }
             if (event.timeStamp > newest) newest = event.timeStamp
         }
@@ -98,20 +99,39 @@ class UsageEventReader(private val context: Context) {
         val events = usageStatsManager.queryEvents(now - INITIAL_LOOKBACK_MS, now)
         val event = UsageEvents.Event()
         var current: String? = null
+        var currentClass: String? = null
 
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
             when (mapType(event.eventType)) {
-                UsageEventType.FOREGROUND -> current = event.packageName
-                UsageEventType.BACKGROUND -> if (event.packageName == current) current = null
-                UsageEventType.SCREEN_OFF -> current = null
+                UsageEventType.FOREGROUND -> {
+                    if (event.packageName == current) {
+                        // Intra-app transition — same rule as the tracker: the new activity
+                        // becomes the one whose closers count
+                        currentClass = event.className ?: currentClass
+                    } else {
+                        current = event.packageName
+                        currentClass = event.className
+                    }
+                }
+                UsageEventType.BACKGROUND ->
+                    if (event.packageName == current &&
+                        (event.className == null || currentClass == null || event.className == currentClass)
+                    ) {
+                        current = null
+                        currentClass = null
+                    }
+                UsageEventType.SCREEN_OFF -> {
+                    current = null
+                    currentClass = null
+                }
                 null -> Unit
             }
         }
 
         current?.let {
             Log.d(TAG, "Seeded already-open app on start: $it")
-            tracker.accept(UsageEventType.FOREGROUND, it, now)
+            tracker.accept(UsageEventType.FOREGROUND, it, now, currentClass)
         }
     }
 

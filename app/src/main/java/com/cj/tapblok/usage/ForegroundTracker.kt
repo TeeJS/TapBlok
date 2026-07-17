@@ -41,6 +41,7 @@ enum class UsageEventType {
 class ForegroundTracker {
 
     private var openPackage: String? = null
+    private var openClass: String? = null
     private var openSince: Long = 0
 
     /** The package currently accruing time, or null when nothing is. */
@@ -49,30 +50,57 @@ class ForegroundTracker {
     /**
      * Feeds one event in timestamp order.
      *
+     * [className] matters because of how intra-app activity transitions arrive: moving from
+     * one Activity to another *within* the same app emits RESUMED for the new activity and
+     * PAUSED/STOPPED for the old one — with the old activity's STOPPED often trailing by
+     * seconds. Matching those closers by package alone treated the old activity's STOPPED as
+     * "the app left the foreground", silently ending the interval while the app was still on
+     * screen; with no further FOREGROUND event ever coming, the tracker stayed blind (no
+     * accrual, no blocking) until the user switched apps. Found on device: AccuWeather's
+     * onboarding flow killed tracking 0.6s in. So a BACKGROUND event only closes the interval
+     * if it names the activity that is actually open.
+     *
+     * A null [className] (no class information) falls back to package-level matching.
+     *
      * @return the interval this event closed, or null if it closed nothing. Zero-length
      * intervals are dropped rather than returned, so callers never see no-op spans.
      */
-    fun accept(type: UsageEventType, packageName: String?, timestampMs: Long): UsageInterval? =
+    fun accept(
+        type: UsageEventType,
+        packageName: String?,
+        timestampMs: Long,
+        className: String? = null
+    ): UsageInterval? =
         when (type) {
             UsageEventType.FOREGROUND -> {
                 if (packageName == null) {
                     null
                 } else if (packageName == openPackage) {
-                    // Already open — an intra-app activity transition. Leave the interval
-                    // running rather than closing and reopening it for no reason.
+                    // Intra-app activity transition: keep the interval running, but the newly
+                    // resumed activity is now the one whose BACKGROUND events count — without
+                    // this update, the old activity's trailing STOPPED would still match.
+                    openClass = className ?: openClass
                     null
                 } else {
                     val closed = close(timestampMs)
                     openPackage = packageName
+                    openClass = className
                     openSince = timestampMs
                     closed
                 }
             }
 
-            // Only the app that is actually open can close its own interval. A background
-            // event for some other package says nothing about what the user is looking at.
+            // Only the activity that is actually open can close its own interval. A closer
+            // for some other package — or for a sibling activity this app already navigated
+            // away from — says nothing about what the user is looking at.
             UsageEventType.BACKGROUND ->
-                if (packageName != null && packageName == openPackage) close(timestampMs) else null
+                if (packageName != null && packageName == openPackage &&
+                    (className == null || openClass == null || className == openClass)
+                ) {
+                    close(timestampMs)
+                } else {
+                    null
+                }
 
             // The screen going dark ends foreground use no matter what was open. This is the
             // case the sticky-variable approach got wrong.
@@ -92,8 +120,10 @@ class ForegroundTracker {
      */
     fun flush(now: Long): UsageInterval? {
         val pkg = openPackage ?: return null
+        val cls = openClass
         val closed = close(now)
         openPackage = pkg
+        openClass = cls
         openSince = now
         return closed
     }
@@ -105,6 +135,7 @@ class ForegroundTracker {
     fun discardOpen(now: Long) {
         if (openPackage != null) {
             openPackage = null
+            openClass = null
             openSince = now
         }
     }
@@ -113,6 +144,7 @@ class ForegroundTracker {
         val pkg = openPackage ?: return null
         val start = openSince
         openPackage = null
+        openClass = null
         openSince = 0
         // Guard against a clock that moved backwards as well as against zero-length spans
         return if (at > start) UsageInterval(pkg, start, at) else null

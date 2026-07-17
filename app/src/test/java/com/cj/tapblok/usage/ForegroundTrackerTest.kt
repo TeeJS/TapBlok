@@ -128,6 +128,49 @@ class ForegroundTrackerTest {
         assertNull(tracker.flush(10 * MIN))
     }
 
+    /**
+     * The regression AccuWeather found on device. Moving between activities *within* an app
+     * emits RESUMED for the new activity and a trailing STOPPED for the old one — often
+     * seconds later. Matched by package alone, that trailing STOPPED closed the interval
+     * while the app was still on screen, and with no further FOREGROUND event coming the
+     * tracker stayed blind (no accrual, no blocking) until the user switched apps.
+     */
+    @Test
+    fun `a trailing STOPPED from a previous activity does not end tracking`() {
+        tracker.accept(FOREGROUND, YT, 0, "MainActivity")
+        // intra-app navigation: new activity resumes first...
+        assertNull(tracker.accept(FOREGROUND, YT, 10_000, "PlayerActivity"))
+        // ...then the old one's STOPPED trails in. Same package — but not the open activity.
+        assertNull(tracker.accept(BACKGROUND, YT, 12_000, "MainActivity"))
+
+        // still tracking: time keeps accruing
+        assertEquals(YT, tracker.currentPackage)
+        assertEquals(MIN, tracker.flush(MIN)?.durationMs)
+
+        // and the *open* activity's closer still ends the interval normally
+        val closed = tracker.accept(BACKGROUND, YT, 2 * MIN, "PlayerActivity")
+        assertEquals(MIN, closed?.durationMs)
+        assertNull(tracker.currentPackage)
+    }
+
+    /** The other real-world ordering: the old activity pauses before the new one resumes. */
+    @Test
+    fun `pause-then-resume within one app fragments the interval but loses no time`() {
+        tracker.accept(FOREGROUND, YT, 0, "MainActivity")
+        val first = tracker.accept(BACKGROUND, YT, 5 * MIN, "MainActivity")
+        assertEquals(5 * MIN, first?.durationMs)
+
+        tracker.accept(FOREGROUND, YT, 5 * MIN, "PlayerActivity")
+        val second = tracker.accept(BACKGROUND, YT, 10 * MIN, "PlayerActivity")
+        assertEquals(5 * MIN, second?.durationMs)
+    }
+
+    @Test
+    fun `a closer with no class information still closes by package`() {
+        tracker.accept(FOREGROUND, YT, 0, "MainActivity")
+        assertEquals(3 * MIN, tracker.accept(BACKGROUND, YT, 3 * MIN, null)?.durationMs)
+    }
+
     @Test
     fun `a backwards clock jump cannot create negative or phantom usage`() {
         tracker.accept(FOREGROUND, YT, 10 * MIN)
