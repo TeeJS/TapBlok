@@ -354,10 +354,15 @@ mechanism in this design that closes that. Because every member pushes the scope
 
 ## 9. Open questions
 
-**1. Picture-in-picture defeats the block (§10a).** Found on device during step 4
-verification. Not a refinement — it breaks "blocked means blocked" for the exact apps this
-is for. Three possible fixes, all costing a permission the app currently does without.
-Needs a decision.
+**1. Picture-in-picture (§10a).** Decided: notification listener, pause-on-lock only. Built,
+but the pause has never been observed working — see §10a for the repro.
+
+**2. Does the tag-on-block-screen change need review?** Tapping the tag on a block screen now
+unlocks that app regardless of strict mode. It was previously strict-only, and in non-strict
+mode a tap there stopped the *entire session*. The old behaviour made sense when there were no
+per-app locks to clear; the new one matches the charter's worked example ("available again
+after either 90 min OR the tag"). Flagging because it changes behaviour the user may have
+muscle memory for.
 
 Deferred by choice, revisit if reality disagrees:
 
@@ -366,6 +371,39 @@ Deferred by choice, revisit if reality disagrees:
   accuracy gate — loosening the gate reintroduces silent noise.
 - **Geofence gates strict mode only.** The emergency override is untouched for now.
 - **Automation still stops non-strict sessions.** The §11 fix is deliberately narrow.
+
+---
+
+## 9a. Status — end of 2026-07-16
+
+| Step | State |
+|---|---|
+| 0 · Fork identity + strict-mode hardening | **Done, verified on device** |
+| 1 · Schema + migration | **Done**; migration verified against a real v1 DB by identity hash |
+| 2 · Event-stream usage tracker | **Done**, 43 unit tests |
+| 4 · Lock evaluation in the monitor loop | **Done, verified on device** (YouTube blocked from real use) |
+| 3 · Defaults + override UI | **Done, built only** — never opened on a device |
+| 5 · Tag paths | **Done, built only** |
+| 6 · Daily cap + reason copy | **Done, built only** |
+| 7 · Geofenced strict mode | **Done, built only** |
+| 10a · PiP pause | Built; **pause never observed working** |
+| v2 · Groups UI | Not started |
+
+**Everything from step 3 onward is unverified on hardware.** The phone disconnected before
+any of it could be installed. A green build says a Compose screen compiles, not that it opens.
+
+**First jobs in the morning, in order:**
+
+1. Install and open Settings → Default limits, and the per-app override screen. These are
+   brand-new Compose screens that have never rendered. Assume something is wrong.
+2. Set a short session limit *through the UI* — the first time that has ever been possible —
+   and confirm it takes effect. This replaces the adb prefs-poking that wasted an hour.
+3. Tag on a block screen: confirm SKIP_THE_WAIT gives a fresh session, and that switching an
+   app to GRACE_WINDOW re-locks it when the window closes.
+4. Daily cap: set a tiny one, hit it, confirm the screen says the tag won't help and hides the
+   QR/break buttons — then confirm tapping the tag really does nothing.
+5. PiP (§10a) — needs a long video staged by hand.
+6. Geofence: capture home, check strict mode applies; then check it relaxes away from home.
 
 ---
 
