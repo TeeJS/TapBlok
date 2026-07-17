@@ -33,6 +33,9 @@ wrong app:
 - **Usage means usage.** Time must not accrue while the screen is off, while the app is
   backgrounded, or while the block screen is covering it.
 - **The daily cap is absolute.** Nothing but the daily rollover clears it.
+- **Blocked means blocked.** A locked app must actually stop being usable. ⚠️ Currently
+  false: picture-in-picture plays straight over the block screen and accrues nothing. See
+  §10a — this is an open defect against this very line, not a nice-to-have.
 
 ## 3. What is explicitly off-limits as a workaround?
 
@@ -351,7 +354,10 @@ mechanism in this design that closes that. Because every member pushes the scope
 
 ## 9. Open questions
 
-None. All decisions are settled — see §6 and §4.
+**1. Picture-in-picture defeats the block (§10a).** Found on device during step 4
+verification. Not a refinement — it breaks "blocked means blocked" for the exact apps this
+is for. Three possible fixes, all costing a permission the app currently does without.
+Needs a decision.
 
 Deferred by choice, revisit if reality disagrees:
 
@@ -400,6 +406,47 @@ Acceptance tests for groups, deferred with the UI:
 - Rotate between all four members for 25 min total → still locks. Rotation doesn't reset.
 - Tag tap on any member → unlocks all members.
 - Group hits its daily cap → tag does nothing for any member.
+
+---
+
+## 10a. Picture-in-picture defeats the block (open defect)
+
+**Observed on device, 2026-07-16.** YouTube hit its limit, `BlockingActivity` covered it — and
+YouTube dropped into a PiP window and kept playing on top of the block screen.
+
+Confirmed, not inferred:
+
+- `dumpsys activity activities` → YouTube's task is `mode=pinned visible=true`
+- the monitor loop logs `fg=null` at the same moment
+- playback continues (audio and video), verified by the user
+
+So a video in PiP is **both unblocked and unbilled**: it plays over the block screen, and
+because PiP is not a foreground activity, `ForegroundTracker` sees nothing and accrues
+nothing. Hit the 25-minute limit, get "blocked", keep watching forever at zero cost.
+
+This is pre-existing upstream behaviour — the overlay approach has always had it, and it is
+equally true of today's binary blocking. But it matters more here: a wall is something you
+sit behind, a budget is something you evade. And it defeats §2's first non-negotiable for
+precisely the apps this project exists for. YouTube, TikTok and Instagram are all
+PiP-capable.
+
+**Why it is not trivially fixable.** Nothing in `UsageStatsManager` announces PiP — entering
+it fires `ACTIVITY_PAUSED`, which the tracker correctly reads as "no longer foreground".
+Detecting it at all requires a new capability:
+
+- **NotificationListenerService + MediaSessionManager.** Enumerate active media sessions,
+  and when a locked scope has one, call `pause()` on its transport controls. Directly kills
+  playback rather than merely noticing it. Costs the "Notification access" grant — another
+  Settings trip, and a broad permission.
+- **AccessibilityService.** Can observe windows directly, including PiP. The heaviest
+  permission on Android and the one the app has so far avoided entirely.
+- **Bill it instead of blocking it.** If a locked scope has an active media session, keep
+  accruing rather than trying to stop it. Cheaper, but it means "blocked" still doesn't mean
+  blocked — it only means the daily cap arrives sooner.
+
+⚠️ **Undecided — needs a call.** All three cost a permission the app doesn't have and the
+README implicitly brags about not needing. Doing nothing leaves a real hole in the headline
+feature.
 
 ---
 

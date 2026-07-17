@@ -3,8 +3,6 @@ package com.cj.tapblok
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.app.Service
-import android.app.usage.UsageEvents
-import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -15,6 +13,17 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
 import com.cj.tapblok.database.AppDatabase
+import com.cj.tapblok.database.AppGroup
+import com.cj.tapblok.database.BlockedApp
+import com.cj.tapblok.database.ScopeUsage
+import com.cj.tapblok.database.rulesFor
+import com.cj.tapblok.database.scopeIdOf
+import com.cj.tapblok.usage.ForegroundTracker
+import com.cj.tapblok.usage.LockState
+import com.cj.tapblok.usage.UsageAccountant
+import com.cj.tapblok.usage.UsageEventReader
+import com.cj.tapblok.usage.UsageInterval
+import com.cj.tapblok.usage.lockStateOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -27,13 +36,14 @@ class AppMonitoringService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO)
     private lateinit var db: AppDatabase
     private lateinit var prefs: android.content.SharedPreferences
-    @Volatile private var blockedApps: Set<String> = emptySet()
+    @Volatile private var blockedApps: Map<String, BlockedApp> = emptyMap()
+    @Volatile private var groups: Map<String, AppGroup> = emptyMap()
     @Volatile private var isBreakActive = false
     private var isMonitoring = false
     private var breakTimer: CountDownTimer? = null
-    private var lastEventTimestamp = 0L
-    private var currentForegroundApp: String? = null
-    // Strict mode: apps granted a timed unlock, package -> expiry epoch millis
+    // Strict mode: apps granted a timed unlock, package -> expiry epoch millis.
+    // Superseded by the persisted graceUntil in step 5; kept for now so the existing
+    // NFC/QR unlock keeps working while the tag paths are still being reworked.
     private val temporarilyUnlockedApps = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     companion object {
@@ -101,13 +111,21 @@ class AppMonitoringService : Service() {
 
         serviceScope.launch {
             db.blockedAppDao().getAllBlockedApps().collect { list ->
-                blockedApps = list.map { it.packageName }.toSet()
-                if (BuildConfig.DEBUG) Log.d("AppMonitoringService", "Blocked apps updated from DB: $blockedApps")
+                blockedApps = list.associateBy { it.packageName }
+                if (BuildConfig.DEBUG) Log.d("AppMonitoringService", "Blocked apps updated from DB: ${blockedApps.keys}")
+            }
+        }
+
+        serviceScope.launch {
+            db.appGroupDao().observeAll().collect { list ->
+                groups = list.associateBy { it.groupId }
             }
         }
 
         serviceScope.launch {
             val localContext = this@AppMonitoringService
+            val tracker = ForegroundTracker()
+            val reader = UsageEventReader(localContext)
 
             while (isActive) {
                 if (!hasUsageStatsPermission(localContext) || !Settings.canDrawOverlays(localContext)) {
@@ -117,30 +135,79 @@ class AppMonitoringService : Service() {
                 }
 
                 if (!isBreakActive) {
-                    val foregroundApp = getForegroundApp()
-                    if (BuildConfig.DEBUG) Log.d("AppMonitoringService", "Current App: $foregroundApp")
+                    val now = System.currentTimeMillis()
 
-                    if (foregroundApp != null && foregroundApp in blockedApps &&
-                        foregroundApp != packageName && !isTemporarilyUnlocked(foregroundApp)
-                    ) {
-                        val blockIntent = Intent(localContext, BlockingActivity::class.java).apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            putExtra("BLOCKED_APP_PACKAGE_NAME", foregroundApp)
-                        }
-                        startActivity(blockIntent)
-                        if (BuildConfig.DEBUG) Log.d("AppMonitoringService", "Blocked app detected: $foregroundApp")
+                    // Fold the event log into real intervals of use, then bill each one.
+                    // Intervals for apps we don't control are simply ignored.
+                    reader.pump(tracker, now).forEach { interval -> accrue(interval, now) }
 
-                        val attempts = prefs.getInt("blocked_app_attempts", 0)
-                        prefs.edit {
-                            putInt("blocked_app_attempts", attempts + 1)
+                    tracker.currentPackage
+                        ?.takeIf { it != packageName && !isTemporarilyUnlocked(it) }
+                        ?.let { foreground ->
+                            blockedApps[foreground]?.let { app ->
+                                if (lockStateFor(app, now) != LockState.ALLOWED) {
+                                    showBlockScreen(localContext, foreground)
+                                }
+                            }
                         }
-                    }
                 }
                 delay(1000)
             }
         }
 
         return START_STICKY
+    }
+
+    /**
+     * Credits one interval of foreground use to its budget scope.
+     *
+     * Refuses to accrue anything to a scope that is already locked. Every attempt to open a
+     * blocked app produces a brief foreground blip before the block screen covers it, and
+     * crediting those would keep pushing lastUsedAt forward — the cooldown would never
+     * expire and a locked app would stay locked forever. Rolls and resets are still
+     * persisted in that case, since they're what eventually unlock it.
+     */
+    private suspend fun accrue(interval: UsageInterval, now: Long) {
+        val app = blockedApps[interval.packageName] ?: return
+        val scopeId = scopeIdOf(app)
+        val rules = rulesFor(app, app.groupId?.let { groups[it] }, AppSettings.defaults(this))
+        val resetHour = AppSettings.dailyResetHour(this)
+        val dao = db.usageDao()
+
+        var usage = dao.get(scopeId) ?: ScopeUsage(scopeId = scopeId)
+        usage = UsageAccountant.rollDailyIfNeeded(usage, now, resetHour)
+        usage = UsageAccountant.applyResetIfDue(usage, interval.startMs, rules)
+
+        val state = lockStateOf(usage, rules, now)
+        if (state == LockState.ALLOWED) {
+            usage = UsageAccountant.accrue(usage, interval.durationMs, now)
+        }
+        dao.upsert(usage)
+
+        if (BuildConfig.DEBUG) {
+            Log.d(
+                "AppMonitoringService",
+                "${interval.packageName} -> $scopeId $state +${interval.durationMs}ms " +
+                    "session=${usage.sessionUsedMs}/${rules.sessionLimitMs}ms daily=${usage.dailyUsedMs}ms"
+            )
+        }
+    }
+
+    private suspend fun lockStateFor(app: BlockedApp, now: Long): LockState {
+        val rules = rulesFor(app, app.groupId?.let { groups[it] }, AppSettings.defaults(this))
+        val usage = db.usageDao().get(scopeIdOf(app)) ?: return LockState.ALLOWED
+        return lockStateOf(usage, rules, now)
+    }
+
+    private fun showBlockScreen(context: Context, packageName: String) {
+        val blockIntent = Intent(context, BlockingActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("BLOCKED_APP_PACKAGE_NAME", packageName)
+        }
+        startActivity(blockIntent)
+        if (BuildConfig.DEBUG) Log.d("AppMonitoringService", "Blocked app detected: $packageName")
+
+        prefs.edit { putInt("blocked_app_attempts", prefs.getInt("blocked_app_attempts", 0) + 1) }
     }
 
     private fun isTemporarilyUnlocked(packageName: String): Boolean {
@@ -197,28 +264,6 @@ class AppMonitoringService : Service() {
 
     override fun onBind(intent: Intent): IBinder? {
         return null
-    }
-
-    // Usage events are the reliable way to track the foreground app. queryUsageStats over a
-    // short window misses apps that were already in the foreground before the session began
-    // (no new stats update = invisible), which let blocked apps slip through.
-    @Suppress("DEPRECATION") // MOVE_TO_FOREGROUND == ACTIVITY_RESUMED; the old name also covers pre-API-29 devices
-    private fun getForegroundApp(): String? {
-        val usageStatsManager = getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
-        val now = System.currentTimeMillis()
-        val begin = if (lastEventTimestamp == 0L) now - INITIAL_EVENT_LOOKBACK_MS else lastEventTimestamp + 1
-        val events = usageStatsManager.queryEvents(begin, now)
-        val event = UsageEvents.Event()
-        while (events.hasNextEvent()) {
-            events.getNextEvent(event)
-            if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                currentForegroundApp = event.packageName
-            }
-            if (event.timeStamp > lastEventTimestamp) {
-                lastEventTimestamp = event.timeStamp
-            }
-        }
-        return currentForegroundApp
     }
 }
 
