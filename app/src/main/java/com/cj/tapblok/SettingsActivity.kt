@@ -609,11 +609,10 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                         "uses the pause control."
                 },
                 checked = mediaAccessGranted,
-                // Deliberately not gated on `editable`. The other rows lock mid-session so
-                // they can't be loosened, but this one stores nothing — it only opens
-                // Android's notification-access screen, which stays reachable through system
-                // Settings anyway. Locking it would block the honest path and stop nobody.
-                enabled = true,
+                // Locked mid-session like every other row: turning media-pause off during a
+                // session would weaken enforcement, which is exactly what the session lock
+                // exists to prevent.
+                enabled = editable,
                 onCheckedChange = {
                     notificationAccessLauncher.launch(
                         Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
