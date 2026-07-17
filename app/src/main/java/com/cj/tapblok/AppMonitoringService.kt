@@ -178,11 +178,10 @@ class AppMonitoringService : Service() {
         val app = blockedApps[interval.packageName] ?: return
         val scopeId = scopeIdOf(app)
         val rules = rulesFor(app, app.groupId?.let { groups[it] }, AppSettings.defaults(this))
-        val resetHour = AppSettings.dailyResetHour(this)
         val dao = db.usageDao()
 
         var usage = dao.get(scopeId) ?: ScopeUsage(scopeId = scopeId)
-        usage = UsageAccountant.rollDailyIfNeeded(usage, now, resetHour)
+        usage = UsageAccountant.rollDailyIfNeeded(usage, now, AppSettings.dailyResetMinutes(this))
         usage = UsageAccountant.applyResetIfDue(usage, interval.startMs, rules)
 
         val state = lockStateOf(usage, rules, now)

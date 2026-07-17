@@ -7,6 +7,7 @@
     <string name="title_activity_qr_code">Your QR Code</string>
     <string name="title_activity_shortcut_handler">Start Monitoring</string>
     <string name="title_activity_settings">Settings</string>
+    <string name="title_activity_app_override">App limits</string>
     <string name="shortcut_start_session_disabled">TapBlok monitoring shortcut is currently unavailable.</string>
     <!-- Shown in Android's "Notification access" list, so it must explain why TapBlok is
          asking for something it appears to have no use for -->

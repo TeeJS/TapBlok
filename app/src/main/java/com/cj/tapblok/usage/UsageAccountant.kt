@@ -13,21 +13,24 @@ object UsageAccountant {
 
     /**
      * Start of the daily period containing [nowMs]: the most recent occurrence of
-     * [resetHour].
+     * [resetMinutesOfDay] (minutes since local midnight, so 04:00 is `4 * 60`).
      *
      * Deliberately not midnight. Peak doomscrolling is 00:00–02:00, so a calendar rollover
      * would hand out a fresh daily budget at exactly the worst moment of the night. With a
      * 04:00 boundary, use at 01:00 draws down the budget of the day that began at 04:00
      * *yesterday*.
      *
+     * Minutes rather than whole hours because the settings picker offers both, and silently
+     * flooring the user's 04:30 to 04:00 would be a small lie.
+     *
      * Uses [Calendar] rather than java.time because minSdk is 24 and core library
      * desugaring isn't enabled; ScheduleManager sets the same precedent.
      */
-    fun dailyPeriodStart(nowMs: Long, resetHour: Int, timeZone: TimeZone = TimeZone.getDefault()): Long {
+    fun dailyPeriodStart(nowMs: Long, resetMinutesOfDay: Int, timeZone: TimeZone = TimeZone.getDefault()): Long {
         val cal = Calendar.getInstance(timeZone).apply {
             timeInMillis = nowMs
-            set(Calendar.HOUR_OF_DAY, resetHour)
-            set(Calendar.MINUTE, 0)
+            set(Calendar.HOUR_OF_DAY, resetMinutesOfDay / 60)
+            set(Calendar.MINUTE, resetMinutesOfDay % 60)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
@@ -43,8 +46,8 @@ object UsageAccountant {
      * Only the rollover clears the daily total — no tag, in either mode, can touch it. That
      * is what makes the daily cap the one absolute limit in the system.
      */
-    fun rollDailyIfNeeded(usage: ScopeUsage, now: Long, resetHour: Int, timeZone: TimeZone = TimeZone.getDefault()): ScopeUsage {
-        val period = dailyPeriodStart(now, resetHour, timeZone)
+    fun rollDailyIfNeeded(usage: ScopeUsage, now: Long, resetMinutesOfDay: Int, timeZone: TimeZone = TimeZone.getDefault()): ScopeUsage {
+        val period = dailyPeriodStart(now, resetMinutesOfDay, timeZone)
         return if (period != usage.dailyPeriodStart) {
             usage.copy(dailyUsedMs = 0, dailyPeriodStart = period)
         } else {

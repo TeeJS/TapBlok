@@ -96,6 +96,11 @@
             android:label="@string/title_activity_settings"
             android:theme="@style/Theme.TapBlok" />
         <activity
+            android:name=".AppOverrideActivity"
+            android:exported="false"
+            android:label="@string/title_activity_app_override"
+            android:theme="@style/Theme.TapBlok" />
+        <activity
             android:name="com.journeyapps.barcodescanner.CaptureActivity"
             android:screenOrientation="portrait"
             tools:replace="screenOrientation" />

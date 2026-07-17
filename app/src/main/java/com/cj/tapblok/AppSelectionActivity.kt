@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -38,6 +39,8 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.cj.tapblok.database.BlockedApp
 import com.cj.tapblok.database.BlockedAppDao
+import com.cj.tapblok.database.Defaults
+import com.cj.tapblok.database.rulesFor
 import com.cj.tapblok.ui.theme.TapBlokTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +50,9 @@ import kotlinx.coroutines.launch
 data class AppInfo(
     val appName: String,
     val packageName: String,
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    /** e.g. "25 min · 90 min reset · no daily cap"; null until the app is blocked. */
+    val limitSummary: String? = null
 )
 
 class AppSelectionViewModel(private val blockedAppDao: BlockedAppDao, private val application: Application) : ViewModel() {
@@ -119,10 +124,32 @@ class AppSelectionViewModel(private val blockedAppDao: BlockedAppDao, private va
                 .sortedBy { it.appName.lowercase() }
 
             blockedAppDao.getAllBlockedApps().collect { blockedApps ->
-                val blockedAppPackages = blockedApps.map { it.packageName }.toSet()
-                _apps.value = baseAppList.map { it.copy(isSelected = blockedAppPackages.contains(it.packageName)) }
+                val byPackage = blockedApps.associateBy { it.packageName }
+                // Read defaults per emission, not once: they're the template these rows
+                // inherit from, and changing one in Settings must show up here
+                val defaults = AppSettings.defaults(application)
+                _apps.value = baseAppList.map { info ->
+                    val blocked = byPackage[info.packageName]
+                    info.copy(
+                        isSelected = blocked != null,
+                        limitSummary = blocked?.let { summarise(it, defaults) }
+                    )
+                }
             }
         }
+    }
+
+    /** One line describing the rules that will actually be enforced for this app. */
+    private fun summarise(blocked: BlockedApp, defaults: Defaults): String {
+        if (blocked.groupId != null) return "Shares the ${blocked.groupId} group budget"
+        val rules = rulesFor(blocked, null, defaults)
+        val daily = if (rules.hasDailyCap) {
+            AppSettings.formatMinutes(rules.dailyMinutes) + " daily"
+        } else {
+            "no daily cap"
+        }
+        return "${AppSettings.formatMinutes(rules.sessionMinutes)} · " +
+            "${AppSettings.formatMinutes(rules.resetMinutes)} reset · $daily"
     }
 
     fun onAppSelectionChanged(app: AppInfo, isSelected: Boolean) {
@@ -199,6 +226,9 @@ class AppSelectionActivity : ComponentActivity() {
                         onAppCheckedChange = { app, isSelected ->
                             viewModel.onAppSelectionChanged(app, isSelected)
                         },
+                        onAppClick = { app ->
+                            startActivity(AppOverrideActivity.intent(this, app.packageName))
+                        },
                         modifier = Modifier.padding(padding)
                     )
                 }
@@ -211,6 +241,7 @@ class AppSelectionActivity : ComponentActivity() {
 fun AppSelectionScreen(
     apps: List<AppInfo>,
     onAppCheckedChange: (AppInfo, Boolean) -> Unit,
+    onAppClick: (AppInfo) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -251,6 +282,7 @@ fun AppSelectionScreen(
                     onCheckedChange = { isSelected ->
                         onAppCheckedChange(app, isSelected)
                     },
+                    onClick = { onAppClick(app) },
                     isEnabled = !isServiceRunning
                 )
             }
@@ -262,6 +294,7 @@ fun AppSelectionScreen(
 fun AppListItem(
     app: AppInfo,
     onCheckedChange: (Boolean) -> Unit,
+    onClick: () -> Unit,
     isEnabled: Boolean
 ) {
     val context = LocalContext.current
@@ -291,12 +324,26 @@ fun AppListItem(
             modifier = Modifier.size(48.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = app.appName,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = app.appName, style = MaterialTheme.typography.bodyLarge)
+            // Only meaningful once an app is actually controlled; showing limits for an
+            // unselected app would imply they apply
+            app.limitSummary?.takeIf { app.isSelected }?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (app.isSelected) {
+            IconButton(onClick = onClick) {
+                Icon(
+                    Icons.Default.Tune,
+                    contentDescription = "Limits for ${app.appName}"
+                )
+            }
+        }
         Checkbox(
             checked = app.isSelected,
             onCheckedChange = onCheckedChange,

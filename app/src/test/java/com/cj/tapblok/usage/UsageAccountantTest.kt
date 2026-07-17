@@ -10,6 +10,9 @@ import java.util.TimeZone
 
 private const val MIN = 60_000L
 
+/** The daily boundary is minutes-since-midnight, so 04:00 is 240 — not 4. */
+private const val FOUR_AM = 4 * 60
+
 /** YouTube from the charter's worked example: 25 min session, 90 min reset, no daily cap. */
 private val youtubeRules = ResolvedRules(
     sessionMinutes = 25,
@@ -35,7 +38,7 @@ class UsageAccountantTest {
     fun `the day starts at the reset hour, not midnight`() {
         val nineAm = at(2026, 7, 16, 9, 0)
 
-        assertEquals(at(2026, 7, 16, 4, 0), UsageAccountant.dailyPeriodStart(nineAm, 4, utc))
+        assertEquals(at(2026, 7, 16, 4, 0), UsageAccountant.dailyPeriodStart(nineAm, FOUR_AM, utc))
     }
 
     /**
@@ -46,7 +49,7 @@ class UsageAccountantTest {
     fun `one am belongs to yesterday's budget, which is the whole point`() {
         val oneAm = at(2026, 7, 16, 1, 0)
 
-        assertEquals(at(2026, 7, 15, 4, 0), UsageAccountant.dailyPeriodStart(oneAm, 4, utc))
+        assertEquals(at(2026, 7, 15, 4, 0), UsageAccountant.dailyPeriodStart(oneAm, FOUR_AM, utc))
     }
 
     @Test
@@ -55,8 +58,8 @@ class UsageAccountantTest {
         val oneAm = at(2026, 7, 16, 1, 0)
 
         assertEquals(
-            UsageAccountant.dailyPeriodStart(elevenPm, 4, utc),
-            UsageAccountant.dailyPeriodStart(oneAm, 4, utc)
+            UsageAccountant.dailyPeriodStart(elevenPm, FOUR_AM, utc),
+            UsageAccountant.dailyPeriodStart(oneAm, FOUR_AM, utc)
         )
     }
 
@@ -71,7 +74,7 @@ class UsageAccountantTest {
     fun `exactly at the reset hour starts the new period`() {
         val fourAm = at(2026, 7, 16, 4, 0)
 
-        assertEquals(fourAm, UsageAccountant.dailyPeriodStart(fourAm, 4, utc))
+        assertEquals(fourAm, UsageAccountant.dailyPeriodStart(fourAm, FOUR_AM, utc))
     }
 
     // ---- daily rollover ----
@@ -84,10 +87,10 @@ class UsageAccountantTest {
             scopeId = "yt",
             sessionUsedMs = 10 * MIN,
             dailyUsedMs = 100 * MIN,
-            dailyPeriodStart = UsageAccountant.dailyPeriodStart(before, 4, utc)
+            dailyPeriodStart = UsageAccountant.dailyPeriodStart(before, FOUR_AM, utc)
         )
 
-        val rolled = UsageAccountant.rollDailyIfNeeded(usage, after, 4, utc)
+        val rolled = UsageAccountant.rollDailyIfNeeded(usage, after, FOUR_AM, utc)
 
         assertEquals(0, rolled.dailyUsedMs)
         assertEquals(10 * MIN, rolled.sessionUsedMs)
@@ -100,10 +103,10 @@ class UsageAccountantTest {
         val usage = ScopeUsage(
             scopeId = "yt",
             dailyUsedMs = 100 * MIN,
-            dailyPeriodStart = UsageAccountant.dailyPeriodStart(nine, 4, utc)
+            dailyPeriodStart = UsageAccountant.dailyPeriodStart(nine, FOUR_AM, utc)
         )
 
-        assertEquals(100 * MIN, UsageAccountant.rollDailyIfNeeded(usage, ten, 4, utc).dailyUsedMs)
+        assertEquals(100 * MIN, UsageAccountant.rollDailyIfNeeded(usage, ten, FOUR_AM, utc).dailyUsedMs)
     }
 
     // ---- accrual ----

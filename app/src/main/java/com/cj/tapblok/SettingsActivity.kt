@@ -51,7 +51,7 @@ object AppSettings {
     const val KEY_DEFAULT_RESET_MINUTES = "default_reset_minutes"
     const val KEY_DEFAULT_TAG_UNLOCK_MODE = "default_tag_unlock_mode"
     const val KEY_DEFAULT_GRACE_MINUTES = "default_grace_minutes"
-    const val KEY_DAILY_RESET_HOUR = "daily_reset_hour"
+    const val KEY_DAILY_RESET_MINUTES = "daily_reset_minutes"
 
     const val DEFAULT_OVERRIDE_SECONDS = 90
     const val DEFAULT_BREAKS_ALLOWED = 3
@@ -67,12 +67,12 @@ object AppSettings {
     val DEFAULT_TAG_UNLOCK_MODE = TagUnlockMode.SKIP_THE_WAIT
 
     /**
-     * Not midnight. Peak doomscrolling is 00:00–02:00, so a calendar rollover would hand out
-     * a fresh daily budget at exactly the worst moment of the night — the cap would reinforce
-     * the behaviour it exists to stop. With a 04:00 boundary, scrolling at 01:00 draws down
-     * the budget of the day that began at 04:00 *yesterday*.
+     * 04:00, not midnight. Peak doomscrolling is 00:00–02:00, so a calendar rollover would
+     * hand out a fresh daily budget at exactly the worst moment of the night — the cap would
+     * reinforce the behaviour it exists to stop. With a 04:00 boundary, scrolling at 01:00
+     * draws down the budget of the day that began at 04:00 *yesterday*.
      */
-    const val DEFAULT_DAILY_RESET_HOUR = 4
+    const val DEFAULT_DAILY_RESET_MINUTES = 4 * 60
 
     fun prefs(context: Context): android.content.SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -91,9 +91,17 @@ object AppSettings {
         )
     }
 
-    /** Hour of day (0–23) at which the daily cap rolls over. */
-    fun dailyResetHour(context: Context): Int =
-        prefs(context).getInt(KEY_DAILY_RESET_HOUR, DEFAULT_DAILY_RESET_HOUR)
+    /** Minutes since local midnight at which the daily cap rolls over. */
+    fun dailyResetMinutes(context: Context): Int =
+        prefs(context).getInt(KEY_DAILY_RESET_MINUTES, DEFAULT_DAILY_RESET_MINUTES)
+
+    /** "25 min", "1h 30m", or [zeroLabel] when minutes is 0 and a meaning was supplied. */
+    fun formatMinutes(minutes: Int, zeroLabel: String? = null): String = when {
+        minutes == 0 && zeroLabel != null -> zeroLabel
+        minutes < 60 -> "$minutes min"
+        minutes % 60 == 0 -> "${minutes / 60}h"
+        else -> "${minutes / 60}h ${minutes % 60}m"
+    }
 
     fun formatMinutesOfDay(minutesOfDay: Int): String =
         String.format(Locale.US, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60)
@@ -144,6 +152,14 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     var stopMinutes by remember { mutableStateOf(prefs.getInt(AppSettings.KEY_SCHEDULE_STOP_MINUTES, AppSettings.DEFAULT_STOP_MINUTES)) }
     var daysMask by remember { mutableStateOf(prefs.getInt(AppSettings.KEY_SCHEDULE_DAYS, AppSettings.DEFAULT_DAYS_MASK)) }
 
+    val initialDefaults = remember { AppSettings.defaults(context) }
+    var defaultSession by remember { mutableStateOf(initialDefaults.sessionMinutes) }
+    var defaultDaily by remember { mutableStateOf(initialDefaults.dailyMinutes) }
+    var defaultReset by remember { mutableStateOf(initialDefaults.resetMinutes) }
+    var defaultGrace by remember { mutableStateOf(initialDefaults.graceMinutes) }
+    var defaultTagMode by remember { mutableStateOf(initialDefaults.tagUnlockMode) }
+    var dailyResetMinutes by remember { mutableStateOf(AppSettings.dailyResetMinutes(context)) }
+
     // Notification access is granted in system Settings, not stored by us, so re-read it on
     // return rather than tracking a preference that could drift out of sync with reality
     var mediaAccessGranted by remember { mutableStateOf(MediaPauser(context).isEnabled()) }
@@ -173,6 +189,116 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(16.dp)
+                )
+            }
+        }
+
+        SettingsSection(title = "Default limits") {
+            Text(
+                text = "Every app you block uses these unless you give it its own. " +
+                    "Each app gets its own separate budget — a 25 minute default across four " +
+                    "apps means four independent 25 minute budgets, not 25 shared.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            MinutesRow(
+                label = "Session limit",
+                caption = "Continuous use before an app locks",
+                minutes = defaultSession,
+                enabled = editable,
+                isDefault = true,
+                onPicked = {
+                    defaultSession = it
+                    prefs.edit { putInt(AppSettings.KEY_DEFAULT_SESSION_MINUTES, it) }
+                }
+            )
+            MinutesRow(
+                label = "Daily cap",
+                caption = "Total per day. Nothing but the daily reset clears this — not even the tag.",
+                minutes = defaultDaily,
+                enabled = editable,
+                zeroLabel = "No cap",
+                isDefault = true,
+                onPicked = {
+                    defaultDaily = it
+                    prefs.edit { putInt(AppSettings.KEY_DEFAULT_DAILY_MINUTES, it) }
+                }
+            )
+            MinutesRow(
+                label = "Reset time",
+                caption = "Wait this long and a locked app frees itself — and a part-used " +
+                    "session clears too. One number, both jobs.",
+                minutes = defaultReset,
+                enabled = editable,
+                isDefault = true,
+                onPicked = {
+                    defaultReset = it
+                    prefs.edit { putInt(AppSettings.KEY_DEFAULT_RESET_MINUTES, it) }
+                }
+            )
+            TimeRow(
+                label = "Day starts at",
+                minutesOfDay = dailyResetMinutes,
+                enabled = editable,
+                onTimePicked = {
+                    dailyResetMinutes = it
+                    prefs.edit { putInt(AppSettings.KEY_DAILY_RESET_MINUTES, it) }
+                }
+            )
+            Text(
+                text = "When the daily cap rolls over. Not midnight by default: late-night " +
+                    "scrolling would get handed a fresh budget at exactly the wrong moment.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Text(
+                text = "What the tag does to a locked app",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 12.dp)
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = defaultTagMode == TagUnlockMode.SKIP_THE_WAIT,
+                    enabled = editable,
+                    onClick = {
+                        defaultTagMode = TagUnlockMode.SKIP_THE_WAIT
+                        prefs.edit { putString(AppSettings.KEY_DEFAULT_TAG_UNLOCK_MODE, defaultTagMode.name) }
+                    },
+                    label = { Text("Fresh session") }
+                )
+                FilterChip(
+                    selected = defaultTagMode == TagUnlockMode.GRACE_WINDOW,
+                    enabled = editable,
+                    onClick = {
+                        defaultTagMode = TagUnlockMode.GRACE_WINDOW
+                        prefs.edit { putString(AppSettings.KEY_DEFAULT_TAG_UNLOCK_MODE, defaultTagMode.name) }
+                    },
+                    label = { Text("Timed unlock") }
+                )
+            }
+            Text(
+                text = when (defaultTagMode) {
+                    TagUnlockMode.SKIP_THE_WAIT ->
+                        "Tapping the tag does exactly what waiting out the reset does: the app " +
+                            "is free again with a full session. The walk to the tag is the friction."
+                    TagUnlockMode.GRACE_WINDOW ->
+                        "Tapping the tag buys a short window, then the app locks again — the " +
+                            "session budget is never cleared."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (defaultTagMode == TagUnlockMode.GRACE_WINDOW) {
+                MinutesRow(
+                    label = "Unlock window",
+                    minutes = defaultGrace,
+                    enabled = editable,
+                    isDefault = true,
+                    onPicked = {
+                        defaultGrace = it
+                        prefs.edit { putInt(AppSettings.KEY_DEFAULT_GRACE_MINUTES, it) }
+                    }
                 )
             }
         }
@@ -406,8 +532,9 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     }
 }
 
+/** Shared with [AppOverrideActivity] so the two screens read as one app, not two. */
 @Composable
-private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = title,
@@ -447,6 +574,111 @@ private fun SettingsSwitchRow(
         }
         Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
+}
+
+/**
+ * A row whose value is a duration in minutes, edited through a free-text dialog.
+ *
+ * Chips would be more consistent with the older rows, but session/daily/reset need a wide
+ * range and a handful of presets would quietly cap what the user can express. Anything the
+ * app can enforce, they should be able to type.
+ */
+@Composable
+fun MinutesRow(
+    label: String,
+    caption: String? = null,
+    minutes: Int,
+    enabled: Boolean,
+    zeroLabel: String? = null,
+    isDefault: Boolean = false,
+    onPicked: (Int) -> Unit
+) {
+    var editing by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled) { editing = true }
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = label, style = MaterialTheme.typography.bodyLarge)
+            caption?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = AppSettings.formatMinutes(minutes, zeroLabel),
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            )
+            // An inherited 25 and a pinned 25 look identical otherwise, which makes the whole
+            // template idea impossible to reason about
+            Text(
+                text = if (isDefault) "default" else "custom",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+
+    if (editing) {
+        MinutesDialog(
+            title = label,
+            minutes = minutes,
+            zeroLabel = zeroLabel,
+            onDismiss = { editing = false },
+            onPicked = { editing = false; onPicked(it) }
+        )
+    }
+}
+
+@Composable
+private fun MinutesDialog(
+    title: String,
+    minutes: Int,
+    zeroLabel: String?,
+    onDismiss: () -> Unit,
+    onPicked: (Int) -> Unit
+) {
+    var text by remember { mutableStateOf(minutes.toString()) }
+    val parsed = text.trim().toIntOrNull()
+    val valid = parsed != null && parsed >= 0 && parsed <= 24 * 60
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it.filter(Char::isDigit).take(4) },
+                    label = { Text("Minutes") },
+                    singleLine = true,
+                    isError = !valid
+                )
+                zeroLabel?.let {
+                    Text(
+                        text = "0 = $it",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { parsed?.let(onPicked) }, enabled = valid) { Text("OK") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable
