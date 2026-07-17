@@ -354,8 +354,10 @@ mechanism in this design that closes that. Because every member pushes the scope
 
 ## 9. Open questions
 
-**1. Picture-in-picture (§10a).** Decided: notification listener, pause-on-lock only. Built,
-but the pause has never been observed working — see §10a for the repro.
+**1. Picture-in-picture (§10a).** CLOSED — the user has accepted current functionality
+(2026-07-17). The notification-listener pause-on-lock is built and shipped as-is; the
+maximise-to-catch path works. The narrow remaining gap (a video already playing in PiP when
+the lock fires) is accepted, not pursued. Do not spend more effort here unless asked.
 
 **2. Does the tag-on-block-screen change need review?** Tapping the tag on a block screen now
 unlocks that app regardless of strict mode. It was previously strict-only, and in non-strict
@@ -382,12 +384,17 @@ Deferred by choice, revisit if reality disagrees:
 | 1 · Schema + migration | **Done**; migration verified against a real v1 DB by identity hash |
 | 2 · Event-stream usage tracker | **Done**, 43 unit tests |
 | 4 · Lock evaluation in the monitor loop | **Done, verified on device** (YouTube blocked from real use) |
-| 3 · Defaults + override UI | **Done, built only** — never opened on a device |
-| 5 · Tag paths | **Done, built only** |
-| 6 · Daily cap + reason copy | **Done, built only** |
-| 7 · Geofenced strict mode | **Done, built only** |
-| 10a · PiP pause | Built; **pause never observed working** |
+| 3 · Defaults + override UI | **Done, verified on device** — set a limit through the UI, inherit/custom/reset all work |
+| 5 · Tag paths | Accounting unit-tested; **tag→unlock wiring needs a physical tag tap** (adb can't reach the non-exported service) |
+| 6 · Daily cap + reason copy | **Done, verified on device** — daily-cap screen shows the reason and hides QR/break |
+| 7 · Geofenced strict mode | UI + **accuracy-gate rejection verified**; home-capture can't complete indoors (real-world, not a bug); HOME/AWAY presence path still unverified |
+| 10a · PiP pause | Accepted as-is by the user — closed |
+| Radius display bug | Found + fixed + verified: was formatting metres as "24h" |
 | v2 · Groups UI | Not started |
+
+**Still needs the user, next session:**
+- Tag tap on a block screen to prove SKIP_THE_WAIT clears the session (accounting is unit-tested; only the wiring is unproven).
+- Geofence HOME/AWAY: capture home outdoors or near a window with a good fix, then confirm strict applies at home and relaxes away.
 
 **Everything from step 3 onward is unverified on hardware.** The phone disconnected before
 any of it could be installed. A green build says a Compose screen compiles, not that it opens.
