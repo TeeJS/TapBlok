@@ -13,11 +13,15 @@ val localProps = Properties().apply {
 }
 
 android {
+    // namespace stays com.cj.tapblok so R/BuildConfig imports and the source tree are
+    // untouched, which keeps merges from upstream clean. applicationId is what Android
+    // treats as this app's identity, and diverging it lets this fork install alongside
+    // upstream TapBlok instead of colliding with it on signature.
     namespace = "com.cj.tapblok"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.cj.tapblok"
+        applicationId = "com.tj.tapblok"
         minSdk = 24
         targetSdk = 36
         versionCode = 8
@@ -26,18 +30,26 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    // Only declare the release signing config when a keystore is actually configured.
+    // Unconditionally calling file("") throws "Cannot convert '' to File" at configuration
+    // time, which made even assembleDebug impossible on a clone without local.properties.
     signingConfigs {
-        create("release") {
-            storeFile = file(localProps.getProperty("RELEASE_STORE_FILE", ""))
-            storePassword = localProps.getProperty("RELEASE_STORE_PASSWORD", "")
-            keyAlias = localProps.getProperty("RELEASE_KEY_ALIAS", "")
-            keyPassword = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
+        val releaseStore = localProps.getProperty("RELEASE_STORE_FILE")
+        if (!releaseStore.isNullOrBlank()) {
+            create("release") {
+                storeFile = file(releaseStore)
+                storePassword = localProps.getProperty("RELEASE_STORE_PASSWORD", "")
+                keyAlias = localProps.getProperty("RELEASE_KEY_ALIAS", "")
+                keyPassword = localProps.getProperty("RELEASE_KEY_PASSWORD", "")
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            // Absent a keystore the release build stays unsigned rather than failing the
+            // whole configuration phase; `assembleRelease` is then the only thing affected
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

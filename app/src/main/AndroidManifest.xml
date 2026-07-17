@@ -2,8 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Custom permission names are device-global: sharing upstream's name while signed
+         with a different key fails the install outright (INSTALL_FAILED_DUPLICATE_PERMISSION) -->
     <permission
-        android:name="com.cj.tapblok.permission.START_MONITORING"
+        android:name="com.tj.tapblok.permission.START_MONITORING"
         android:protectionLevel="signature" />
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -62,7 +64,7 @@
                 <action android:name="android.nfc.action.NDEF_DISCOVERED" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <!-- Must match NfcWriteActivity.NFC_MIME_TYPE -->
-                <data android:mimeType="application/vnd.com.cj.tapblok" />
+                <data android:mimeType="application/vnd.com.tj.tapblok" />
             </intent-filter>
         </activity>
         <activity
@@ -81,7 +83,7 @@
             android:name=".ShortcutHandlerActivity"
             android:exported="true"
             android:label="@string/title_activity_shortcut_handler"
-            android:permission="com.cj.tapblok.permission.START_MONITORING"
+            android:permission="com.tj.tapblok.permission.START_MONITORING"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
         <activity
             android:name=".QrCodeActivity"
@@ -117,15 +119,23 @@
 
         <!-- Exported so automation apps (Tasker, MacroDroid, Samsung Routines) can start
              or stop sessions; external triggers are ignored unless the user enables
-             "Allow automation apps" in Settings. Also the target of schedule alarms. -->
+             "Allow automation apps" in Settings, and stop is ignored outright in strict
+             mode. Schedule alarms do NOT come through here — see ScheduleAlarmReceiver. -->
         <receiver
             android:name=".ScheduleReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.cj.tapblok.SCHEDULE_START" />
-                <action android:name="com.cj.tapblok.SCHEDULE_STOP" />
+                <action android:name="com.tj.tapblok.SCHEDULE_START" />
+                <action android:name="com.tj.tapblok.SCHEDULE_STOP" />
             </intent-filter>
         </receiver>
+
+        <!-- Not exported and no intent-filter: reachable only by ScheduleManager's
+             explicit PendingIntents, which is what makes an alarm distinguishable from an
+             external broadcast without trusting a forgeable extra. -->
+        <receiver
+            android:name=".ScheduleAlarmReceiver"
+            android:exported="false" />
     </application>
 
     <queries>

@@ -7,7 +7,7 @@ import androidx.activity.ComponentActivity
 class ShortcutHandlerActivity : ComponentActivity() {
 
     companion object {
-        const val ACTION_START_MONITORING = "com.cj.tapblok.START_MONITORING"
+        const val ACTION_START_MONITORING = "com.tj.tapblok.START_MONITORING"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -6,10 +6,12 @@
         android:shortcutShortLabel="@string/shortcut_start_session_short_label"
         android:shortcutLongLabel="@string/shortcut_start_session_long_label"
         android:shortcutDisabledMessage="@string/shortcut_start_session_disabled">
-        <!-- Must match ShortcutHandlerActivity.ACTION_START_MONITORING -->
+        <!-- Must match ShortcutHandlerActivity.ACTION_START_MONITORING.
+             targetPackage is the applicationId; targetClass follows the namespace, which
+             is deliberately still com.cj.tapblok — see app/build.gradle.kts. -->
         <intent
-            android:action="com.cj.tapblok.START_MONITORING"
-            android:targetPackage="com.cj.tapblok"
+            android:action="com.tj.tapblok.START_MONITORING"
+            android:targetPackage="com.tj.tapblok"
             android:targetClass="com.cj.tapblok.ShortcutHandlerActivity" />
     </shortcut>
 </shortcuts>

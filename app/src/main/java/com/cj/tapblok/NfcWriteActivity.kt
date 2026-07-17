@@ -39,7 +39,10 @@ import java.io.IOException
 class NfcWriteActivity : ComponentActivity() {
 
     companion object {
-        const val NFC_MIME_TYPE = "application/vnd.com.cj.tapblok"
+        // Distinct from upstream's vnd.com.cj.tapblok: with both apps installable side by
+        // side, a shared MIME type would raise an app-chooser on every tag tap. Tags
+        // written by upstream must be re-written once from this build.
+        const val NFC_MIME_TYPE = "application/vnd.com.tj.tapblok"
     }
 
     private var nfcAdapter: NfcAdapter? = null

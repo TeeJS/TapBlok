@@ -27,8 +27,8 @@ object ScheduleManager {
      */
     fun reschedule(context: Context, startIfInWindow: Boolean = false) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val startPi = pendingIntent(context, REQUEST_START, ScheduleReceiver.ACTION_SCHEDULE_START)
-        val stopPi = pendingIntent(context, REQUEST_STOP, ScheduleReceiver.ACTION_SCHEDULE_STOP)
+        val startPi = pendingIntent(context, REQUEST_START, ScheduleAlarmReceiver.ACTION_ALARM_START)
+        val stopPi = pendingIntent(context, REQUEST_STOP, ScheduleAlarmReceiver.ACTION_ALARM_STOP)
         alarmManager.cancel(startPi)
         alarmManager.cancel(stopPi)
 
@@ -62,10 +62,11 @@ object ScheduleManager {
         }
     }
 
+    // Targets the non-exported ScheduleAlarmReceiver: alarms are trusted because of where
+    // they land, not because of an extra any caller could set
     private fun pendingIntent(context: Context, requestCode: Int, action: String): PendingIntent {
-        val intent = Intent(context, ScheduleReceiver::class.java)
+        val intent = Intent(context, ScheduleAlarmReceiver::class.java)
             .setAction(action)
-            .putExtra(ScheduleReceiver.EXTRA_FROM_ALARM, true)
         return PendingIntent.getBroadcast(
             context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE

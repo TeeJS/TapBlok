@@ -301,7 +301,8 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             SettingsSwitchRow(
                 label = "Allow automation apps",
                 caption = "Tasker, MacroDroid, Samsung Routines and similar apps can start or stop " +
-                        "sessions by broadcasting com.cj.tapblok.SCHEDULE_START or SCHEDULE_STOP",
+                        "sessions by broadcasting com.tj.tapblok.SCHEDULE_START or SCHEDULE_STOP. " +
+                        "Strict mode ignores stop requests from these apps.",
                 checked = externalAutomation,
                 enabled = editable,
                 onCheckedChange = {
