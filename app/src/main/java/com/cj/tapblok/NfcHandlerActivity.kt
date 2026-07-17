@@ -68,30 +68,44 @@ class NfcHandlerActivity : ComponentActivity() {
             return
         }
 
-        // Deciding this can need a location fix, so it can't happen on the main thread. The
+        // Snapshot what the user was looking at NOW, before anything suspends. The strict-mode
+        // decision below can wait several seconds on a location fix, and AppForeground's
+        // visibility grace is only 5s — judged after the wait, a legitimate "TapBlok open, tag
+        // tapped" stop looked like a background scan and was refused. What matters is the
+        // moment of the tap, not the moment the geofence finishes thinking.
+        val blockingVisible = AppForeground.isBlockingVisible()
+        val blockedPackage = AppForeground.blockedPackage
+        val mainVisible = AppForeground.isMainVisible()
+
+        // Deciding strict mode can need a location fix, so it can't happen inline. The
         // activity is translucent and has no UI, so there's nothing to keep on screen while
         // it resolves.
         lifecycleScope.launch {
-            routeTag(strictModeApplies(this@NfcHandlerActivity))
+            routeTag(strictModeApplies(this@NfcHandlerActivity), blockingVisible, blockedPackage, mainVisible)
             finish()
         }
     }
 
-    private fun routeTag(strictMode: Boolean) {
-        val blockedPackage = AppForeground.blockedPackage
+    private fun routeTag(
+        strictMode: Boolean,
+        blockingVisible: Boolean,
+        blockedPackage: String?,
+        mainVisible: Boolean
+    ) {
         when {
             // On a block screen the tag means "free this app" — one of the two unlock paths
             // the whole feature is built around, alongside waiting out the reset. This no
             // longer depends on strict mode: before per-app limits existed there was no app
             // lock to clear, so this branch was strict-only and a tap here stopped the entire
             // session instead. That would now be a much bigger hammer than the user asked for.
-            AppForeground.isBlockingVisible() && blockedPackage != null ->
+            blockingVisible && blockedPackage != null ->
                 unlockBlockedApp(blockedPackage)
             // Anywhere else, the tag is a session-level control.
             !strictMode -> stopSession()
             // Stopping the whole session in strict mode requires TapBlok itself to be open
-            AppForeground.isMainVisible() -> stopSession()
+            mainVisible -> stopSession()
             else -> {
+                Log.w("NfcHandlerActivity", "Strict mode refused background scan — TapBlok wasn't open at tap time.")
                 Toast.makeText(this, "Strict mode: open TapBlok, then scan again to stop.", Toast.LENGTH_LONG).show()
                 showStrictModeNotification()
             }

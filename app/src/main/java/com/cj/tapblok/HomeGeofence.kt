@@ -115,7 +115,8 @@ object HomeGeofence {
     @Suppress("MissingPermission") // guarded by hasPermission() before any call reaches here
     private suspend fun requestFresh(manager: LocationManager, context: Context): Location? =
         suspendCancellableCoroutine { cont ->
-            val provider = providers(manager).firstOrNull() ?: run {
+            val enabled = providers(manager)
+            if (enabled.isEmpty()) {
                 cont.resume(null)
                 return@suspendCancellableCoroutine
             }
@@ -129,15 +130,17 @@ object HomeGeofence {
                 @Deprecated("Required for API < 30")
                 override fun onStatusChanged(p: String?, s: Int, e: android.os.Bundle?) = Unit
                 override fun onProviderEnabled(p: String) = Unit
-                override fun onProviderDisabled(p: String) {
-                    manager.removeUpdates(this)
-                    if (cont.isActive) cont.resume(null)
-                }
+                override fun onProviderDisabled(p: String) = Unit
             }
             try {
-                manager.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper())
+                // Ask every enabled provider at once and take whoever answers first. Asking
+                // only GPS burned the whole timeout indoors, where it rarely gets a fix at
+                // all, while the network provider (Wi-Fi) would have answered in a second or
+                // two at 20–50m — comfortably inside the radius gate.
+                enabled.forEach { manager.requestLocationUpdates(it, 0L, 0f, listener, Looper.getMainLooper()) }
                 cont.invokeOnCancellation { manager.removeUpdates(listener) }
             } catch (e: SecurityException) {
+                manager.removeUpdates(listener)
                 cont.resume(null)
             }
         }
