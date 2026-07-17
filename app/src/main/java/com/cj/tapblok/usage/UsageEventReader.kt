@@ -4,6 +4,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.PowerManager
+import android.util.Log
 import androidx.core.content.edit
 
 /**
@@ -18,6 +19,9 @@ import androidx.core.content.edit
  * non-event.
  */
 class UsageEventReader(private val context: Context) {
+
+    /** Whether this process has established what was already on screen when it started. */
+    private var seeded = false
 
     private val usageStatsManager
         get() = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
@@ -55,6 +59,19 @@ class UsageEventReader(private val context: Context) {
         }
         if (newest > cursor) lastEventTimestamp = newest
 
+        // An app that was already on screen when this process started is otherwise invisible
+        // forever: its FOREGROUND event is older than the cursor, so the replay above never
+        // reveals it, and no new event will fire until the user leaves and comes back. Start
+        // a session with YouTube already open and it would never be blocked at all.
+        //
+        // Upstream's getForegroundApp() dodged this by accident — its cursor lived in a field
+        // and reset to a one-hour lookback on every service start. Persisting the cursor is
+        // what made the seeding necessary.
+        if (!seeded) {
+            seeded = true
+            if (tracker.currentPackage == null) seedCurrentForeground(tracker, now)
+        }
+
         // Belt and braces over the SCREEN_OFF event: if the screen is dark, nothing is being
         // used, whatever the event log did or didn't deliver. A missed SCREEN_NON_INTERACTIVE
         // would otherwise bill pocket time to whatever was last open.
@@ -67,12 +84,44 @@ class UsageEventReader(private val context: Context) {
         return intervals
     }
 
+    /**
+     * Establishes which app is on screen right now, by replaying a wide window and folding it
+     * down to a single answer.
+     *
+     * The resulting interval is opened at [now] rather than at the original FOREGROUND event's
+     * timestamp. That is deliberate: the earlier time was either already accrued before this
+     * process died, or was covered by the replay above. Opening at the event's real timestamp
+     * would credit it a second time — a restart would hand the user a surprise bill for hours
+     * they had already paid.
+     */
+    private fun seedCurrentForeground(tracker: ForegroundTracker, now: Long) {
+        val events = usageStatsManager.queryEvents(now - INITIAL_LOOKBACK_MS, now)
+        val event = UsageEvents.Event()
+        var current: String? = null
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            when (mapType(event.eventType)) {
+                UsageEventType.FOREGROUND -> current = event.packageName
+                UsageEventType.BACKGROUND -> if (event.packageName == current) current = null
+                UsageEventType.SCREEN_OFF -> current = null
+                null -> Unit
+            }
+        }
+
+        current?.let {
+            Log.d(TAG, "Seeded already-open app on start: $it")
+            tracker.accept(UsageEventType.FOREGROUND, it, now)
+        }
+    }
+
     /** Forgets the cursor, so the next pump starts fresh instead of backfilling. */
     fun resetCursor() {
         prefs.edit { remove(KEY_CURSOR) }
     }
 
     private companion object {
+        const val TAG = "UsageEventReader"
         const val PREFS = "usage_tracking"
         const val KEY_CURSOR = "last_event_timestamp"
 

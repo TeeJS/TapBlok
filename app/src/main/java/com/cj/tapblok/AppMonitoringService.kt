@@ -41,6 +41,7 @@ class AppMonitoringService : Service() {
     @Volatile private var isBreakActive = false
     private var isMonitoring = false
     private var breakTimer: CountDownTimer? = null
+    private lateinit var mediaPauser: MediaPauser
     // Strict mode: apps granted a timed unlock, package -> expiry epoch millis.
     // Superseded by the persisted graceUntil in step 5; kept for now so the existing
     // NFC/QR unlock keeps working while the tag paths are still being reworked.
@@ -60,6 +61,7 @@ class AppMonitoringService : Service() {
         super.onCreate()
         db = AppDatabase.getDatabase(this)
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+        mediaPauser = MediaPauser(this)
         isRunning = true
     }
 
@@ -150,6 +152,11 @@ class AppMonitoringService : Service() {
                                 }
                             }
                         }
+
+                    // Deliberately not tied to the foreground check above: an app playing in
+                    // picture-in-picture is by definition *not* foreground, which is exactly
+                    // how it slips past the block screen (PROJECT.md §10a).
+                    pauseLockedMedia(now)
                 }
                 delay(1000)
             }
@@ -191,6 +198,26 @@ class AppMonitoringService : Service() {
                     "session=${usage.sessionUsedMs}/${rules.sessionLimitMs}ms daily=${usage.dailyUsedMs}ms"
             )
         }
+    }
+
+    /**
+     * Pauses any locked app that is still playing media — the picture-in-picture case.
+     *
+     * No-ops unless the user has granted notification access, so the feature stays opt-in and
+     * blocking behaves exactly as before without it.
+     */
+    private suspend fun pauseLockedMedia(now: Long) {
+        if (!mediaPauser.isEnabled()) return
+
+        // Resolve lock state up front: MediaPauser's callback is synchronous, and lock state
+        // needs a suspending database read.
+        val lockedPackages = blockedApps.values
+            .filter { !isTemporarilyUnlocked(it.packageName) && lockStateFor(it, now) != LockState.ALLOWED }
+            .map { it.packageName }
+            .toSet()
+
+        if (lockedPackages.isEmpty()) return
+        mediaPauser.pauseLocked { pkg -> pkg in lockedPackages }
     }
 
     private suspend fun lockStateFor(app: BlockedApp, now: Long): LockState {

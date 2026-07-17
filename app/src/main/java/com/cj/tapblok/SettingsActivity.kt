@@ -2,9 +2,13 @@ package com.cj.tapblok
 
 import android.app.TimePickerDialog
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -139,6 +143,15 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     var stopEnabled by remember { mutableStateOf(prefs.getBoolean(AppSettings.KEY_SCHEDULE_STOP_ENABLED, true)) }
     var stopMinutes by remember { mutableStateOf(prefs.getInt(AppSettings.KEY_SCHEDULE_STOP_MINUTES, AppSettings.DEFAULT_STOP_MINUTES)) }
     var daysMask by remember { mutableStateOf(prefs.getInt(AppSettings.KEY_SCHEDULE_DAYS, AppSettings.DEFAULT_DAYS_MASK)) }
+
+    // Notification access is granted in system Settings, not stored by us, so re-read it on
+    // return rather than tracking a preference that could drift out of sync with reality
+    var mediaAccessGranted by remember { mutableStateOf(MediaPauser(context).isEnabled()) }
+    val notificationAccessLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        mediaAccessGranted = MediaPauser(context).isEnabled()
+    }
 
     // All inputs lock while a session runs so settings can't be loosened mid-session
     val editable = !isServiceActive
@@ -338,6 +351,30 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     )
                 }
             }
+        }
+
+        SettingsSection(title = "Blocked media") {
+            SettingsSwitchRow(
+                label = "Pause media when blocked",
+                caption = if (mediaAccessGranted) {
+                    "On. A blocked app playing in picture-in-picture will be paused."
+                } else {
+                    "Off. A blocked app can keep playing in a picture-in-picture window. " +
+                        "Needs notification access — TapBlok reads no notifications, it only " +
+                        "uses the pause control."
+                },
+                checked = mediaAccessGranted,
+                // Deliberately not gated on `editable`. The other rows lock mid-session so
+                // they can't be loosened, but this one stores nothing — it only opens
+                // Android's notification-access screen, which stays reachable through system
+                // Settings anyway. Locking it would block the honest path and stop nobody.
+                enabled = true,
+                onCheckedChange = {
+                    notificationAccessLauncher.launch(
+                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                    )
+                }
+            )
         }
 
         SettingsSection(title = "Automation") {

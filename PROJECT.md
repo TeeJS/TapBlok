@@ -444,9 +444,54 @@ Detecting it at all requires a new capability:
   accruing rather than trying to stop it. Cheaper, but it means "blocked" still doesn't mean
   blocked — it only means the daily cap arrives sooner.
 
-⚠️ **Undecided — needs a call.** All three cost a permission the app doesn't have and the
-README implicitly brags about not needing. Doing nothing leaves a real hole in the headline
-feature.
+### Decided: notification listener. Built, not yet proven.
+
+`TapBlokNotificationListener` (an intentionally empty `NotificationListenerService`) plus
+`MediaPauser`, wired into the monitor loop via `pauseLockedMedia()` — independent of the
+foreground check, since a PiP app is by definition not foreground.
+
+Scope is narrow by decision: **pause a scope that is already locked**. Playback is *not*
+treated as usage, because a media session reports "playing", not "visible", and cannot tell
+PiP video from screen-off background audio — counting the latter would burn a YouTube budget
+on podcasts in a pocket. That leaves one accepted hole: drop to PiP *before* ever hitting the
+limit and you never lock, so the pause never fires. Accepted because PiP is a two-inch window
+you cannot doomscroll in.
+
+**Status after the 2026-07-16 session — verified:**
+
+- the listener registers and binds; notification access granted; `MediaPauser.isEnabled()` true
+- PiP reproduces reliably: `mode=pinned` immediately after the block screen appears
+- maximising the PiP window *is* caught — YouTube becomes foreground again, the tracker sees
+  it, and the block fires (user-observed)
+
+**Not yet verified — the actual point of the feature:**
+
+A locked app *playing* in PiP has never been observed being paused. Every attempt raced the
+content: Shorts ended before the check, and by the time playback state was sampled YouTube's
+session read `STOPPED`, so `MediaPauser` correctly did nothing. The plumbing is proven; the
+pause is not.
+
+⚠️ **Next session, first job:** play a *long* regular video (not a Short), leave it playing
+fullscreen, start a session on an already-over-budget YouTube, and poll once a second — task
+mode, `PlaybackState`, and the `MediaPauser` log together — to catch the transition rather
+than peek at the end.
+
+**Open sub-question raised by that:** does YouTube even publish `STATE_PLAYING` while in PiP?
+If it reports something else (BUFFERING, or nothing), the `state != STATE_PLAYING` filter in
+`MediaPauser.pauseLocked` is wrong and should probably pause on anything that isn't already
+PAUSED/STOPPED.
+
+### Testing note: prefs cannot be hand-edited any more
+
+Writing `app_prefs.xml` over adb to set a short limit for testing **does not work**, and cost
+an hour before that was clear. SharedPreferences rewrites the whole file from its in-memory
+map, so the app silently erases keys it never loaded. `force-stop` used to make this safe —
+but now that the notification listener is enabled, the system keeps rebinding the process, so
+force-stop no longer really stops it. The feature defeated the test method.
+
+Use one of these instead:
+- build step 3's UI and set defaults through the app (the real fix)
+- temporarily edit `AppSettings.DEFAULT_SESSION_MINUTES` and rebuild (works; mark it TEMP)
 
 ---
 
