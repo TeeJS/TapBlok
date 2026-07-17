@@ -37,4 +37,13 @@ interface BlockedAppDao {
 
     @Query("SELECT * FROM blocked_apps WHERE groupId = :groupId")
     suspend fun getByGroup(groupId: String): List<BlockedApp>
+
+    /** Assigns or clears (null) group membership without disturbing an app's own overrides. */
+    @Query("UPDATE blocked_apps SET groupId = :groupId WHERE packageName = :packageName")
+    suspend fun setGroup(packageName: String, groupId: String?)
+
+    /** Detaches every member of a group — used before deleting the group so no row is left
+     *  pointing at a scope that no longer exists. */
+    @Query("UPDATE blocked_apps SET groupId = NULL WHERE groupId = :groupId")
+    suspend fun clearGroup(groupId: String)
 }

@@ -128,11 +128,13 @@ class AppSelectionViewModel(private val blockedAppDao: BlockedAppDao, private va
                 // Read defaults per emission, not once: they're the template these rows
                 // inherit from, and changing one in Settings must show up here
                 val defaults = AppSettings.defaults(application)
+                val groupNames = (application as App).database.appGroupDao().getAll()
+                    .associate { it.groupId to it.name }
                 _apps.value = baseAppList.map { info ->
                     val blocked = byPackage[info.packageName]
                     info.copy(
                         isSelected = blocked != null,
-                        limitSummary = blocked?.let { summarise(it, defaults) }
+                        limitSummary = blocked?.let { summarise(it, defaults, groupNames) }
                     )
                 }
             }
@@ -140,8 +142,11 @@ class AppSelectionViewModel(private val blockedAppDao: BlockedAppDao, private va
     }
 
     /** One line describing the rules that will actually be enforced for this app. */
-    private fun summarise(blocked: BlockedApp, defaults: Defaults): String {
-        if (blocked.groupId != null) return "Shares the ${blocked.groupId} group budget"
+    private fun summarise(blocked: BlockedApp, defaults: Defaults, groupNames: Map<String, String>): String {
+        blocked.groupId?.let { gid ->
+            val name = groupNames[gid] ?: "a group"
+            return "Shares the “$name” group budget"
+        }
         val rules = rulesFor(blocked, null, defaults)
         val daily = if (rules.hasDailyCap) {
             AppSettings.formatMinutes(rules.dailyMinutes) + " daily"

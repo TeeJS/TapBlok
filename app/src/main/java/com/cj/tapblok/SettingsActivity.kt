@@ -809,6 +809,35 @@ private fun ValueDialog(
     )
 }
 
+/** A one-field text prompt, used for naming and renaming groups. Trims and rejects blanks. */
+@Composable
+fun TextFieldDialog(
+    title: String,
+    initial: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(initial) }
+    val trimmed = text.trim()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it.take(40) },
+                singleLine = true,
+                label = { Text("Name") }
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(trimmed) }, enabled = trimmed.isNotEmpty()) { Text("OK") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
 @Composable
 private fun TimeRow(
     label: String,

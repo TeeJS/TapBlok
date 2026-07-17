@@ -83,10 +83,12 @@ class AppOverrideActivity : ComponentActivity() {
 private fun AppOverrideScreen(packageName: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val dao = remember { AppDatabase.getDatabase(context).blockedAppDao() }
+    val db = remember { AppDatabase.getDatabase(context) }
+    val dao = db.blockedAppDao()
     val defaults = remember { AppSettings.defaults(context) }
 
     var app by remember { mutableStateOf<BlockedApp?>(null) }
+    var groupName by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
 
     // Same rule as app selection and the rest of Settings: rules can't be loosened mid-session,
@@ -94,7 +96,11 @@ private fun AppOverrideScreen(packageName: String, modifier: Modifier = Modifier
     val editable = !isServiceRunning(context, AppMonitoringService::class.java)
 
     LaunchedEffect(packageName) {
-        app = withContext(Dispatchers.IO) { dao.getByPackage(packageName) }
+        val loaded = withContext(Dispatchers.IO) { dao.getByPackage(packageName) }
+        app = loaded
+        groupName = loaded?.groupId?.let { gid ->
+            withContext(Dispatchers.IO) { db.appGroupDao().get(gid)?.name }
+        }
         loading = false
     }
 
@@ -130,14 +136,22 @@ private fun AppOverrideScreen(packageName: String, modifier: Modifier = Modifier
             }
         }
 
-        if (current.groupId != null) {
+        current.groupId?.let { gid ->
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "This app is in a group and shares that group's budget, so its own " +
-                        "limits don't apply. Remove it from the group to give it separate limits.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(16.dp)
-                )
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "In the “${groupName ?: "…"}” group, sharing that group's budget — " +
+                            "so its own limits below don't apply.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { save(current.copy(groupId = null)) },
+                        enabled = editable
+                    ) {
+                        Text("Remove from group")
+                    }
+                }
             }
             return@Column
         }

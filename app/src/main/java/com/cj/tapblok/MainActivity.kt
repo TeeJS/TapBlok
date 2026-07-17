@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.PlayArrow
@@ -285,6 +286,13 @@ fun MainScreen() {
                             label = "Manage Blocked Apps",
                             enabled = !isServiceRunning,
                             onClick = { context.startActivity(Intent(context, AppSelectionActivity::class.java)) }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                        ActionRow(
+                            icon = Icons.Default.Layers,
+                            label = "App Groups",
+                            enabled = !isServiceRunning,
+                            onClick = { context.startActivity(Intent(context, AppGroupsActivity::class.java)) }
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                         // Both disabled during a session so a new unlock credential can't
