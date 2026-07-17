@@ -1,6 +1,10 @@
 [versions]
 agp = "8.13.2"
-kotlin = "2.0.21"
+# Kotlin must stay new enough for Room's build-time schema tooling: Room 2.8.1 embeds
+# kotlinx-serialization built for Kotlin 2.1+, and running it inside an older Kotlin
+# compiler throws AbstractMethodError in the KSP round (see commit history). KSP now
+# versions independently of Kotlin (2.3.x scheme).
+kotlin = "2.4.10"
 coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -47,5 +51,5 @@ zxing-android-embedded = { group = "com.journeyapps", name = "zxing-android-embe
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-ksp = { id = "com.google.devtools.ksp", version = "2.0.21-1.0.27" }
+ksp = { id = "com.google.devtools.ksp", version = "2.3.10" }
 
