@@ -39,6 +39,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.edit
 import coil.compose.rememberAsyncImagePainter
 import com.cj.tapblok.ui.theme.TapBlokTheme
+import com.cj.tapblok.usage.LockState
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
@@ -74,7 +75,9 @@ class BlockingActivity : ComponentActivity() {
         val packageName = blockedPackage ?: "An app"
         val prefs = AppSettings.prefs(this)
         val strictMode = prefs.getBoolean(AppSettings.KEY_STRICT_MODE, false)
-        val unlockMinutes = prefs.getInt(AppSettings.KEY_UNLOCK_MINUTES, AppSettings.DEFAULT_UNLOCK_MINUTES)
+        val lockReason = intent.getStringExtra(AppMonitoringService.EXTRA_LOCK_REASON)
+            ?.let { runCatching { LockState.valueOf(it) }.getOrNull() }
+            ?: LockState.SESSION_LOCKED
 
         val goHome = {
             val intent = Intent(Intent.ACTION_MAIN).apply {
@@ -94,7 +97,7 @@ class BlockingActivity : ComponentActivity() {
                 BlockingScreen(
                     packageName = packageName,
                     strictMode = strictMode,
-                    unlockMinutes = unlockMinutes,
+                    lockReason = lockReason,
                     onGoHomeClick = goHome,
                     onTakeBreakClick = {
                         val breakIntent = Intent(this, AppMonitoringService::class.java).apply {
@@ -144,14 +147,14 @@ class BlockingActivity : ComponentActivity() {
 
     private fun unlockAndReturn() {
         val pkg = blockedPackage ?: return
-        val minutes = AppSettings.prefs(this)
-            .getInt(AppSettings.KEY_UNLOCK_MINUTES, AppSettings.DEFAULT_UNLOCK_MINUTES)
+        // What this actually does now depends on the app's tag mode — a fresh session or a
+        // timed window — and the service owns that decision, so don't promise a duration here
         val unlockIntent = Intent(this, AppMonitoringService::class.java).apply {
             action = AppMonitoringService.ACTION_UNLOCK_APP
             putExtra(AppMonitoringService.EXTRA_UNLOCK_PACKAGE, pkg)
         }
         startService(unlockIntent)
-        Toast.makeText(this, "Unlocked for $minutes minute${if (minutes != 1) "s" else ""}.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Unlocked.", Toast.LENGTH_SHORT).show()
         packageManager.getLaunchIntentForPackage(pkg)?.let { launch ->
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(launch)
@@ -164,7 +167,7 @@ class BlockingActivity : ComponentActivity() {
 fun BlockingScreen(
     packageName: String,
     strictMode: Boolean,
-    unlockMinutes: Int,
+    lockReason: LockState,
     onGoHomeClick: () -> Unit,
     onTakeBreakClick: () -> Unit,
     onScanToUnlockClick: () -> Unit
@@ -234,7 +237,7 @@ fun BlockingScreen(
             Spacer(modifier = Modifier.height(28.dp))
 
             Text(
-                text = "BLOCKED",
+                text = if (lockReason == LockState.DAILY_LOCKED) "DAILY LIMIT REACHED" else "BLOCKED",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 letterSpacing = 2.sp
@@ -251,11 +254,14 @@ fun BlockingScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = if (strictMode) {
-                    "Tap your NFC tag or scan your QR code to unlock $appName for " +
-                            "$unlockMinutes minute${if (unlockMinutes != 1) "s" else ""}."
+                // The daily cap is the one limit the tag cannot clear. Saying so here is the
+                // difference between "wait until tomorrow" and walking to wherever the tag
+                // lives, tapping it, and finding nothing happens.
+                text = if (lockReason == LockState.DAILY_LOCKED) {
+                    "$appName has used its whole day. The tag won't open this one — " +
+                        "it's back at your daily reset time."
                 } else {
-                    "Tap your NFC tag or scan your QR code to unlock."
+                    "Tap your NFC tag or scan your QR code to unlock, or wait out the reset."
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -271,7 +277,9 @@ fun BlockingScreen(
                 Text("Go Home")
             }
 
-            if (strictMode) {
+            // Both of these would be no-ops against a daily cap — offering them would be an
+            // invitation to try something that cannot work
+            if (strictMode && lockReason != LockState.DAILY_LOCKED) {
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = onScanToUnlockClick,
@@ -281,7 +289,7 @@ fun BlockingScreen(
                 }
             }
 
-            if (breaksRemaining > 0) {
+            if (breaksRemaining > 0 && lockReason != LockState.DAILY_LOCKED) {
                 Spacer(modifier = Modifier.height(12.dp))
                 OutlinedButton(
                     onClick = {

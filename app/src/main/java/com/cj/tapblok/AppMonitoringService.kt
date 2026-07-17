@@ -16,6 +16,7 @@ import com.cj.tapblok.database.AppDatabase
 import com.cj.tapblok.database.AppGroup
 import com.cj.tapblok.database.BlockedApp
 import com.cj.tapblok.database.ScopeUsage
+import com.cj.tapblok.database.TagUnlockMode
 import com.cj.tapblok.database.rulesFor
 import com.cj.tapblok.database.scopeIdOf
 import com.cj.tapblok.usage.ForegroundTracker
@@ -42,10 +43,6 @@ class AppMonitoringService : Service() {
     private var isMonitoring = false
     private var breakTimer: CountDownTimer? = null
     private lateinit var mediaPauser: MediaPauser
-    // Strict mode: apps granted a timed unlock, package -> expiry epoch millis.
-    // Superseded by the persisted graceUntil in step 5; kept for now so the existing
-    // NFC/QR unlock keeps working while the tag paths are still being reworked.
-    private val temporarilyUnlockedApps = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     companion object {
         const val NOTIFICATION_ID = 1
@@ -53,6 +50,9 @@ class AppMonitoringService : Service() {
         const val ACTION_START_BREAK = "com.cj.tapblok.ACTION_START_BREAK"
         const val ACTION_UNLOCK_APP = "com.cj.tapblok.ACTION_UNLOCK_APP"
         const val EXTRA_UNLOCK_PACKAGE = "com.cj.tapblok.extra.UNLOCK_PACKAGE"
+
+        /** [LockState] name, so the block screen can say *why* — and whether the tag will help. */
+        const val EXTRA_LOCK_REASON = "com.cj.tapblok.extra.LOCK_REASON"
         private const val INITIAL_EVENT_LOOKBACK_MS = 60 * 60 * 1000L
         @Volatile var isRunning = false
     }
@@ -74,10 +74,8 @@ class AppMonitoringService : Service() {
         }
 
         if (intent?.action == ACTION_UNLOCK_APP) {
-            intent.getStringExtra(EXTRA_UNLOCK_PACKAGE)?.let { unlockPackage ->
-                val minutes = prefs.getInt(AppSettings.KEY_UNLOCK_MINUTES, AppSettings.DEFAULT_UNLOCK_MINUTES)
-                temporarilyUnlockedApps[unlockPackage] = System.currentTimeMillis() + minutes * 60_000L
-                Log.d("AppMonitoringService", "Temporarily unlocked $unlockPackage for $minutes minutes.")
+            intent.getStringExtra(EXTRA_UNLOCK_PACKAGE)?.let { pkg ->
+                serviceScope.launch { applyTagUnlock(pkg) }
             }
             return START_STICKY
         }
@@ -143,12 +141,15 @@ class AppMonitoringService : Service() {
                     // Intervals for apps we don't control are simply ignored.
                     reader.pump(tracker, now).forEach { interval -> accrue(interval, now) }
 
+                    // A grace window is now part of the scope's persisted state, so
+                    // lockStateOf already accounts for it — there is nothing extra to check
                     tracker.currentPackage
-                        ?.takeIf { it != packageName && !isTemporarilyUnlocked(it) }
+                        ?.takeIf { it != packageName }
                         ?.let { foreground ->
                             blockedApps[foreground]?.let { app ->
-                                if (lockStateFor(app, now) != LockState.ALLOWED) {
-                                    showBlockScreen(localContext, foreground)
+                                val state = lockStateFor(app, now)
+                                if (state != LockState.ALLOWED) {
+                                    showBlockScreen(localContext, foreground, state)
                                 }
                             }
                         }
@@ -200,6 +201,48 @@ class AppMonitoringService : Service() {
     }
 
     /**
+     * Applies a tag tap (or QR scan) to an app's budget scope.
+     *
+     * The tag never touches the daily total, in either mode. A scope that has hit its daily
+     * cap is left exactly as it is, so the tag simply does nothing and only the daily rollover
+     * frees it — that is what makes the daily cap the one absolute limit in the system. The
+     * caller is told, so the block screen can say so rather than leaving the user tapping a
+     * tag that will never work.
+     *
+     * On a grouped app this unlocks the whole group: one budget, one lock, one unlock. That is
+     * the intent, not a side effect.
+     */
+    private suspend fun applyTagUnlock(packageName: String): LockState {
+        val app = blockedApps[packageName] ?: return LockState.ALLOWED
+        val scopeId = scopeIdOf(app)
+        val rules = rulesFor(app, app.groupId?.let { groups[it] }, AppSettings.defaults(this))
+        val now = System.currentTimeMillis()
+        val dao = db.usageDao()
+
+        var usage = dao.get(scopeId) ?: ScopeUsage(scopeId = scopeId)
+        usage = UsageAccountant.rollDailyIfNeeded(usage, now, AppSettings.dailyResetMinutes(this))
+
+        if (lockStateOf(usage, rules, now) == LockState.DAILY_LOCKED) {
+            dao.upsert(usage)
+            Log.d("AppMonitoringService", "Tag ignored for $packageName — daily cap reached.")
+            return LockState.DAILY_LOCKED
+        }
+
+        usage = when (rules.tagUnlockMode) {
+            // Exactly what waiting out the reset does: a full fresh session. The walk to
+            // wherever the tag lives is the intended friction.
+            TagUnlockMode.SKIP_THE_WAIT -> UsageAccountant.clearSession(usage)
+            // A fixed window; the session counter is untouched, so it re-locks when the
+            // window closes.
+            TagUnlockMode.GRACE_WINDOW -> UsageAccountant.grantGrace(usage, now, rules)
+        }
+        dao.upsert(usage)
+
+        Log.d("AppMonitoringService", "Tag applied to $scopeId (${rules.tagUnlockMode}).")
+        return LockState.ALLOWED
+    }
+
+    /**
      * Pauses any locked app that is still playing media — the picture-in-picture case.
      *
      * No-ops unless the user has granted notification access, so the feature stays opt-in and
@@ -211,7 +254,7 @@ class AppMonitoringService : Service() {
         // Resolve lock state up front: MediaPauser's callback is synchronous, and lock state
         // needs a suspending database read.
         val lockedPackages = blockedApps.values
-            .filter { !isTemporarilyUnlocked(it.packageName) && lockStateFor(it, now) != LockState.ALLOWED }
+            .filter { lockStateFor(it, now) != LockState.ALLOWED }
             .map { it.packageName }
             .toSet()
 
@@ -225,24 +268,16 @@ class AppMonitoringService : Service() {
         return lockStateOf(usage, rules, now)
     }
 
-    private fun showBlockScreen(context: Context, packageName: String) {
+    private fun showBlockScreen(context: Context, packageName: String, reason: LockState) {
         val blockIntent = Intent(context, BlockingActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra("BLOCKED_APP_PACKAGE_NAME", packageName)
+            putExtra(EXTRA_LOCK_REASON, reason.name)
         }
         startActivity(blockIntent)
         if (BuildConfig.DEBUG) Log.d("AppMonitoringService", "Blocked app detected: $packageName")
 
         prefs.edit { putInt("blocked_app_attempts", prefs.getInt("blocked_app_attempts", 0) + 1) }
-    }
-
-    private fun isTemporarilyUnlocked(packageName: String): Boolean {
-        val expiry = temporarilyUnlockedApps[packageName] ?: return false
-        if (expiry <= System.currentTimeMillis()) {
-            temporarilyUnlockedApps.remove(packageName)
-            return false
-        }
-        return true
     }
 
     private fun startBreak() {

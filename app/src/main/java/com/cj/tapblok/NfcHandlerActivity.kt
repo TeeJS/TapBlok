@@ -60,11 +60,16 @@ class NfcHandlerActivity : ComponentActivity() {
         val strictMode = AppSettings.prefs(this).getBoolean(AppSettings.KEY_STRICT_MODE, false)
         val blockedPackage = AppForeground.blockedPackage
         when {
-            !strictMode -> stopSession()
-            // Scanning on a block screen grants a timed unlock for that app only
+            // On a block screen the tag means "free this app" — one of the two unlock paths
+            // the whole feature is built around, alongside waiting out the reset. This no
+            // longer depends on strict mode: before per-app limits existed there was no app
+            // lock to clear, so this branch was strict-only and a tap here stopped the entire
+            // session instead. That would now be a much bigger hammer than the user asked for.
             AppForeground.isBlockingVisible() && blockedPackage != null ->
-                grantTemporaryUnlock(blockedPackage)
-            // Stopping the whole session requires TapBlok itself to be open
+                unlockBlockedApp(blockedPackage)
+            // Anywhere else, the tag is a session-level control.
+            !strictMode -> stopSession()
+            // Stopping the whole session in strict mode requires TapBlok itself to be open
             AppForeground.isMainVisible() -> stopSession()
             else -> {
                 Toast.makeText(this, "Strict mode: open TapBlok, then scan again to stop.", Toast.LENGTH_LONG).show()
@@ -78,15 +83,18 @@ class NfcHandlerActivity : ComponentActivity() {
         Toast.makeText(this, "Monitoring stopped.", Toast.LENGTH_SHORT).show()
     }
 
-    private fun grantTemporaryUnlock(blockedPackage: String) {
-        val minutes = AppSettings.prefs(this)
-            .getInt(AppSettings.KEY_UNLOCK_MINUTES, AppSettings.DEFAULT_UNLOCK_MINUTES)
+    /**
+     * Applies the tag to the blocked app. What that means — a fresh session or a timed window
+     * — is the app's own configured mode, resolved by the service; and if the app has hit its
+     * daily cap it means nothing at all, because the tag never touches the daily total.
+     */
+    private fun unlockBlockedApp(blockedPackage: String) {
         val unlockIntent = Intent(this, AppMonitoringService::class.java).apply {
             action = AppMonitoringService.ACTION_UNLOCK_APP
             putExtra(AppMonitoringService.EXTRA_UNLOCK_PACKAGE, blockedPackage)
         }
         startService(unlockIntent)
-        Toast.makeText(this, "Unlocked for $minutes minute${if (minutes != 1) "s" else ""}.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Unlocked.", Toast.LENGTH_SHORT).show()
         // Bring the unblocked app forward; the block screen closes itself once hidden
         packageManager.getLaunchIntentForPackage(blockedPackage)?.let { launch ->
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
