@@ -433,6 +433,9 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                         minutes = homeRadius,
                         enabled = editable,
                         isDefault = homeRadius == AppSettings.DEFAULT_HOME_RADIUS_M,
+                        unitLabel = "Metres",
+                        maxValue = 10_000,
+                        format = { "$it m" },
                         onPicked = {
                             homeRadius = it
                             prefs.edit { putInt(AppSettings.KEY_HOME_RADIUS_M, it) }
@@ -707,6 +710,12 @@ fun MinutesRow(
     enabled: Boolean,
     zeroLabel: String? = null,
     isDefault: Boolean = false,
+    // Defaults describe a duration in minutes; radius overrides these to be a distance in
+    // metres. Without them the radius would display "24h" and cap at 1440 — a duration format
+    // and a minutes limit wrongly applied to a distance.
+    unitLabel: String = "Minutes",
+    maxValue: Int = 24 * 60,
+    format: (Int) -> String = { AppSettings.formatMinutes(it, zeroLabel) },
     onPicked: (Int) -> Unit
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -730,7 +739,7 @@ fun MinutesRow(
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                text = AppSettings.formatMinutes(minutes, zeroLabel),
+                text = format(minutes),
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (enabled) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
@@ -746,9 +755,11 @@ fun MinutesRow(
     }
 
     if (editing) {
-        MinutesDialog(
+        ValueDialog(
             title = label,
-            minutes = minutes,
+            initial = minutes,
+            unitLabel = unitLabel,
+            maxValue = maxValue,
             zeroLabel = zeroLabel,
             onDismiss = { editing = false },
             onPicked = { editing = false; onPicked(it) }
@@ -757,16 +768,18 @@ fun MinutesRow(
 }
 
 @Composable
-private fun MinutesDialog(
+private fun ValueDialog(
     title: String,
-    minutes: Int,
+    initial: Int,
+    unitLabel: String,
+    maxValue: Int,
     zeroLabel: String?,
     onDismiss: () -> Unit,
     onPicked: (Int) -> Unit
 ) {
-    var text by remember { mutableStateOf(minutes.toString()) }
+    var text by remember { mutableStateOf(initial.toString()) }
     val parsed = text.trim().toIntOrNull()
-    val valid = parsed != null && parsed >= 0 && parsed <= 24 * 60
+    val valid = parsed != null && parsed >= 0 && parsed <= maxValue
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -775,8 +788,8 @@ private fun MinutesDialog(
             Column {
                 OutlinedTextField(
                     value = text,
-                    onValueChange = { text = it.filter(Char::isDigit).take(4) },
-                    label = { Text("Minutes") },
+                    onValueChange = { text = it.filter(Char::isDigit).take(5) },
+                    label = { Text(unitLabel) },
                     singleLine = true,
                     isError = !valid
                 )
