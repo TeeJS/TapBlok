@@ -1,0 +1,158 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "9b6c2554012d293c3bf12aca15612286",
+    "entities": [
+      {
+        "tableName": "blocked_apps",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`packageName` TEXT NOT NULL, `groupId` TEXT, `sessionMinutes` INTEGER, `dailyMinutes` INTEGER, `resetMinutes` INTEGER, `tagUnlockMode` TEXT, `graceMinutes` INTEGER, PRIMARY KEY(`packageName`))",
+        "fields": [
+          {
+            "fieldPath": "packageName",
+            "columnName": "packageName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupId",
+            "columnName": "groupId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sessionMinutes",
+            "columnName": "sessionMinutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "dailyMinutes",
+            "columnName": "dailyMinutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "resetMinutes",
+            "columnName": "resetMinutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tagUnlockMode",
+            "columnName": "tagUnlockMode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "graceMinutes",
+            "columnName": "graceMinutes",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "packageName"
+          ]
+        }
+      },
+      {
+        "tableName": "app_groups",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`groupId` TEXT NOT NULL, `name` TEXT NOT NULL, `sessionMinutes` INTEGER, `dailyMinutes` INTEGER, `resetMinutes` INTEGER, `tagUnlockMode` TEXT, `graceMinutes` INTEGER, PRIMARY KEY(`groupId`))",
+        "fields": [
+          {
+            "fieldPath": "groupId",
+            "columnName": "groupId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionMinutes",
+            "columnName": "sessionMinutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "dailyMinutes",
+            "columnName": "dailyMinutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "resetMinutes",
+            "columnName": "resetMinutes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "tagUnlockMode",
+            "columnName": "tagUnlockMode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "graceMinutes",
+            "columnName": "graceMinutes",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "groupId"
+          ]
+        }
+      },
+      {
+        "tableName": "usage",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`scopeId` TEXT NOT NULL, `sessionUsedMs` INTEGER NOT NULL, `dailyUsedMs` INTEGER NOT NULL, `lastUsedAt` INTEGER NOT NULL, `dailyPeriodStart` INTEGER NOT NULL, `graceUntil` INTEGER NOT NULL, PRIMARY KEY(`scopeId`))",
+        "fields": [
+          {
+            "fieldPath": "scopeId",
+            "columnName": "scopeId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sessionUsedMs",
+            "columnName": "sessionUsedMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyUsedMs",
+            "columnName": "dailyUsedMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsedAt",
+            "columnName": "lastUsedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "dailyPeriodStart",
+            "columnName": "dailyPeriodStart",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "graceUntil",
+            "columnName": "graceUntil",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "scopeId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9b6c2554012d293c3bf12aca15612286')"
+    ]
+  }
+}

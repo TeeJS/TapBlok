@@ -70,6 +70,13 @@ android {
     }
 }
 
+// Room writes the generated schema JSON here on every build. Committing these is what makes
+// a migration reviewable in a diff and testable against a real prior schema, rather than
+// something you find out about when the app crashes on open.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 dependencies {
 
     implementation(libs.androidx.core.ktx)

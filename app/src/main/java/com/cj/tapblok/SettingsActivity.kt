@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.edit
+import com.cj.tapblok.database.Defaults
+import com.cj.tapblok.database.TagUnlockMode
 import com.cj.tapblok.ui.theme.TapBlokTheme
 import java.util.Locale
 
@@ -38,6 +40,15 @@ object AppSettings {
     // Bit 0 = Monday … bit 6 = Sunday
     const val KEY_SCHEDULE_DAYS = "schedule_days"
 
+    // Per-app rule template. Apps and groups store null to mean "inherit these", resolved
+    // at evaluation time, so changing one of these moves every app the user hasn't pinned.
+    const val KEY_DEFAULT_SESSION_MINUTES = "default_session_minutes"
+    const val KEY_DEFAULT_DAILY_MINUTES = "default_daily_minutes"
+    const val KEY_DEFAULT_RESET_MINUTES = "default_reset_minutes"
+    const val KEY_DEFAULT_TAG_UNLOCK_MODE = "default_tag_unlock_mode"
+    const val KEY_DEFAULT_GRACE_MINUTES = "default_grace_minutes"
+    const val KEY_DAILY_RESET_HOUR = "daily_reset_hour"
+
     const val DEFAULT_OVERRIDE_SECONDS = 90
     const val DEFAULT_BREAKS_ALLOWED = 3
     const val DEFAULT_UNLOCK_MINUTES = 5
@@ -45,8 +56,40 @@ object AppSettings {
     const val DEFAULT_STOP_MINUTES = 7 * 60
     const val DEFAULT_DAYS_MASK = 0b1111111
 
+    const val DEFAULT_SESSION_MINUTES = 25
+    const val DEFAULT_DAILY_MINUTES = 0 // 0 = no daily cap
+    const val DEFAULT_RESET_MINUTES = 90
+    const val DEFAULT_GRACE_MINUTES = 5
+    val DEFAULT_TAG_UNLOCK_MODE = TagUnlockMode.SKIP_THE_WAIT
+
+    /**
+     * Not midnight. Peak doomscrolling is 00:00–02:00, so a calendar rollover would hand out
+     * a fresh daily budget at exactly the worst moment of the night — the cap would reinforce
+     * the behaviour it exists to stop. With a 04:00 boundary, scrolling at 01:00 draws down
+     * the budget of the day that began at 04:00 *yesterday*.
+     */
+    const val DEFAULT_DAILY_RESET_HOUR = 4
+
     fun prefs(context: Context): android.content.SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    /** The template that apps and groups inherit from when their own fields are null. */
+    fun defaults(context: Context): Defaults {
+        val p = prefs(context)
+        return Defaults(
+            sessionMinutes = p.getInt(KEY_DEFAULT_SESSION_MINUTES, DEFAULT_SESSION_MINUTES),
+            dailyMinutes = p.getInt(KEY_DEFAULT_DAILY_MINUTES, DEFAULT_DAILY_MINUTES),
+            resetMinutes = p.getInt(KEY_DEFAULT_RESET_MINUTES, DEFAULT_RESET_MINUTES),
+            tagUnlockMode = p.getString(KEY_DEFAULT_TAG_UNLOCK_MODE, null)
+                ?.let { runCatching { TagUnlockMode.valueOf(it) }.getOrNull() }
+                ?: DEFAULT_TAG_UNLOCK_MODE,
+            graceMinutes = p.getInt(KEY_DEFAULT_GRACE_MINUTES, DEFAULT_GRACE_MINUTES)
+        )
+    }
+
+    /** Hour of day (0–23) at which the daily cap rolls over. */
+    fun dailyResetHour(context: Context): Int =
+        prefs(context).getInt(KEY_DAILY_RESET_HOUR, DEFAULT_DAILY_RESET_HOUR)
 
     fun formatMinutesOfDay(minutesOfDay: Int): String =
         String.format(Locale.US, "%02d:%02d", minutesOfDay / 60, minutesOfDay % 60)
