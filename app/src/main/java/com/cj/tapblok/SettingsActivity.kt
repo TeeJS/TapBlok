@@ -54,6 +54,11 @@ object AppSettings {
     const val KEY_DEFAULT_GRACE_MINUTES = "default_grace_minutes"
     const val KEY_DAILY_RESET_MINUTES = "daily_reset_minutes"
 
+    // Usage notice: the little "Used 5 of 15 min" chip over controlled apps during a session
+    const val KEY_USAGE_NOTICE_ENABLED = "usage_notice_enabled"
+    const val KEY_USAGE_NOTICE_INTERVAL_MIN = "usage_notice_interval_minutes"
+    const val KEY_USAGE_NOTICE_DAILY = "usage_notice_show_daily"
+
     // Geofenced strict mode. Stored as strings because SharedPreferences has no Double.
     const val KEY_GEOFENCE_ENABLED = "geofence_enabled"
     const val KEY_HOME_LAT = "home_lat"
@@ -109,6 +114,18 @@ object AppSettings {
     /** Minutes since local midnight at which the daily cap rolls over. */
     fun dailyResetMinutes(context: Context): Int =
         prefs(context).getInt(KEY_DAILY_RESET_MINUTES, DEFAULT_DAILY_RESET_MINUTES)
+
+    const val DEFAULT_USAGE_NOTICE_INTERVAL_MIN = 5
+
+    fun usageNoticeEnabled(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_USAGE_NOTICE_ENABLED, false)
+
+    /** Minutes between notices while using a controlled app; 0 = chip stays visible. */
+    fun usageNoticeIntervalMinutes(context: Context): Int =
+        prefs(context).getInt(KEY_USAGE_NOTICE_INTERVAL_MIN, DEFAULT_USAGE_NOTICE_INTERVAL_MIN)
+
+    fun usageNoticeShowDaily(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_USAGE_NOTICE_DAILY, false)
 
     fun geofenceEnabled(context: Context): Boolean =
         prefs(context).getBoolean(KEY_GEOFENCE_ENABLED, false)
@@ -207,6 +224,10 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     var defaultGrace by remember { mutableStateOf(initialDefaults.graceMinutes) }
     var defaultTagMode by remember { mutableStateOf(initialDefaults.tagUnlockMode) }
     var dailyResetMinutes by remember { mutableStateOf(AppSettings.dailyResetMinutes(context)) }
+
+    var noticeEnabled by remember { mutableStateOf(prefs.getBoolean(AppSettings.KEY_USAGE_NOTICE_ENABLED, false)) }
+    var noticeInterval by remember { mutableStateOf(AppSettings.usageNoticeIntervalMinutes(context)) }
+    var noticeDaily by remember { mutableStateOf(prefs.getBoolean(AppSettings.KEY_USAGE_NOTICE_DAILY, false)) }
 
     // Notification access is granted in system Settings, not stored by us, so re-read it on
     // return rather than tracking a preference that could drift out of sync with reality
@@ -595,6 +616,45 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                         color = MaterialTheme.colorScheme.error
                     )
                 }
+            }
+        }
+
+        SettingsSection(title = "Usage notice") {
+            SettingsSwitchRow(
+                label = "Show usage notice",
+                caption = "A small chip at the top of the screen showing how much time " +
+                    "you've used. Only while a session is running and a controlled app is open.",
+                checked = noticeEnabled,
+                enabled = editable,
+                onCheckedChange = {
+                    noticeEnabled = it
+                    prefs.edit { putBoolean(AppSettings.KEY_USAGE_NOTICE_ENABLED, it) }
+                }
+            )
+            if (noticeEnabled) {
+                MinutesRow(
+                    label = "Notify every",
+                    caption = "How often the notice reappears while you keep using the app",
+                    minutes = noticeInterval,
+                    enabled = editable,
+                    zeroLabel = "Always visible",
+                    isDefault = noticeInterval == AppSettings.DEFAULT_USAGE_NOTICE_INTERVAL_MIN,
+                    onPicked = {
+                        noticeInterval = it
+                        prefs.edit { putInt(AppSettings.KEY_USAGE_NOTICE_INTERVAL_MIN, it) }
+                    }
+                )
+                SettingsSwitchRow(
+                    label = "Show daily limit",
+                    caption = "On: “Used 5 of 15 session, 30 of 60 daily”. " +
+                        "Off: “Used 5 of 15 min”.",
+                    checked = noticeDaily,
+                    enabled = editable,
+                    onCheckedChange = {
+                        noticeDaily = it
+                        prefs.edit { putBoolean(AppSettings.KEY_USAGE_NOTICE_DAILY, it) }
+                    }
+                )
             }
         }
 

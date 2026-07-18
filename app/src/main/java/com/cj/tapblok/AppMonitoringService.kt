@@ -15,6 +15,7 @@ import androidx.core.content.edit
 import com.cj.tapblok.database.AppDatabase
 import com.cj.tapblok.database.AppGroup
 import com.cj.tapblok.database.BlockedApp
+import com.cj.tapblok.database.ResolvedRules
 import com.cj.tapblok.database.ScopeUsage
 import com.cj.tapblok.database.TagUnlockMode
 import com.cj.tapblok.database.rulesFor
@@ -25,6 +26,7 @@ import com.cj.tapblok.usage.UsageAccountant
 import com.cj.tapblok.usage.UsageEventReader
 import com.cj.tapblok.usage.UsageInterval
 import com.cj.tapblok.usage.lockStateOf
+import com.cj.tapblok.usage.usageNoticeText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -43,6 +45,51 @@ class AppMonitoringService : Service() {
     private var isMonitoring = false
     private var breakTimer: CountDownTimer? = null
     private lateinit var mediaPauser: MediaPauser
+    private lateinit var noticeState: UsageNotice
+
+    /**
+     * Policy for the usage-notice chip; the pixels live in [UsageNoticeOverlay].
+     *
+     * Interval 0 keeps the chip visible for as long as a controlled app has focus. Any other
+     * interval shows it briefly on entering the app and again every N minutes of continued
+     * use. Leaving the app (or it getting blocked) hides the chip and resets the cycle, so
+     * coming back always greets you with where you stand.
+     */
+    private class UsageNotice(private val overlay: UsageNoticeOverlay) {
+        private var scope: String? = null
+        private var lastShownAt = 0L
+
+        fun tick(context: Context, scopeId: String, usage: ScopeUsage?, rules: ResolvedRules, now: Long) {
+            if (!AppSettings.usageNoticeEnabled(context)) {
+                hide()
+                return
+            }
+            val text = usageNoticeText(
+                usage?.sessionUsedMs ?: 0,
+                usage?.dailyUsedMs ?: 0,
+                rules,
+                AppSettings.usageNoticeShowDaily(context)
+            )
+            val intervalMin = AppSettings.usageNoticeIntervalMinutes(context)
+            if (intervalMin == 0) {
+                overlay.show(text, null)
+                scope = scopeId
+            } else if (scope != scopeId || now - lastShownAt >= intervalMin * 60_000L) {
+                overlay.show(text, AUTO_HIDE_MS)
+                scope = scopeId
+                lastShownAt = now
+            }
+        }
+
+        fun hide() {
+            overlay.hide()
+            scope = null
+        }
+
+        private companion object {
+            const val AUTO_HIDE_MS = 5_000L
+        }
+    }
 
     companion object {
         const val NOTIFICATION_ID = 1
@@ -62,6 +109,7 @@ class AppMonitoringService : Service() {
         db = AppDatabase.getDatabase(this)
         prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
         mediaPauser = MediaPauser(this)
+        noticeState = UsageNotice(UsageNoticeOverlay(this))
         isRunning = true
     }
 
@@ -143,21 +191,31 @@ class AppMonitoringService : Service() {
 
                     // A grace window is now part of the scope's persisted state, so
                     // lockStateOf already accounts for it — there is nothing extra to check
-                    tracker.currentPackage
-                        ?.takeIf { it != packageName }
-                        ?.let { foreground ->
-                            blockedApps[foreground]?.let { app ->
-                                val state = lockStateFor(app, now)
-                                if (state != LockState.ALLOWED) {
-                                    showBlockScreen(localContext, foreground, state)
-                                }
-                            }
+                    val foreground = tracker.currentPackage?.takeIf { it != packageName }
+                    val app = foreground?.let { blockedApps[it] }
+                    if (app != null) {
+                        val rules = rulesFor(app, app.groupId?.let { groups[it] }, AppSettings.defaults(localContext))
+                        val usage = db.usageDao().get(scopeIdOf(app))
+                        val state = if (usage == null) LockState.ALLOWED else lockStateOf(usage, rules, now)
+                        if (state != LockState.ALLOWED) {
+                            noticeState.hide()
+                            showBlockScreen(localContext, foreground, state)
+                        } else {
+                            noticeState.tick(localContext, scopeIdOf(app), usage, rules, now)
                         }
+                    } else {
+                        // No controlled app has focus — the chip must never outlive that
+                        noticeState.hide()
+                    }
 
                     // Deliberately not tied to the foreground check above: an app playing in
                     // picture-in-picture is by definition *not* foreground, which is exactly
                     // how it slips past the block screen (PROJECT.md §10a).
                     pauseLockedMedia(now)
+                } else {
+                    // Breaks suspend monitoring wholesale; a stale chip lingering over an
+                    // unmonitored app would be a small lie
+                    noticeState.hide()
                 }
                 delay(1000)
             }
@@ -299,6 +357,7 @@ class AppMonitoringService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         isRunning = false
+        noticeState.hide()
         prefs.edit { putBoolean("monitoring_active", false) }
         serviceScope.cancel()
         breakTimer?.cancel()
