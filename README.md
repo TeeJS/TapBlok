@@ -2,147 +2,153 @@
   <img src="docs/icon.png" width="120" style="border-radius: 24px" />
 </p>
 
-<h1 align="center">TapBlok</h1>
+<h1 align="center">TapBlok Plus</h1>
 
 <p align="center">
-  <strong>Block distracting apps — the physical way.</strong>
+  <strong>Per-app usage limits, unlocked by a physical tag.</strong>
 </p>
 
 <p align="center">
-  TapBlok makes you earn your screen time back. Start a focus session and your chosen apps are locked — the only way out is scanning an NFC tag or QR code you've placed somewhere inconvenient. No digital bypass. No "just this once."
+  A fork of <a href="https://github.com/cajdata/TapBlok">TapBlok</a>, reworked from a single
+  all-or-nothing focus session into <strong>per-app usage limits</strong>. Give each app its
+  own daily and per-session budget; when it runs out the app locks, and the only ways back in
+  are tapping an NFC tag you've placed somewhere inconvenient — or waiting out a cooldown.
+  No digital bypass, no "just this once."
 </p>
 
-<p align="center">
-  <a href="https://github.com/cajdata/TapBlok/releases/latest">
-    <img src="https://img.shields.io/github/v/release/cajdata/TapBlok?label=Download&logo=android&color=00C27A" />
-  </a>
-</p>
-
-<p align="center">Android 7.0+ &nbsp;·&nbsp; Apache 2.0 &nbsp;·&nbsp; Free, no subscription</p>
+<p align="center">Android 7.0+ &nbsp;·&nbsp; Apache 2.0 &nbsp;·&nbsp; Free, no subscription, no tracking</p>
 
 ---
 
-<p align="center">
-  <img src="docs/screenshots/screenshot_01_main_inactive.png" width="28%" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/screenshot_02_main_active.png" width="28%" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/screenshot_04_blocking_screen.png" width="28%" />
-</p>
+## Why "Plus"
 
-<p align="center">
-  <img src="docs/screenshots/screenshot_03_app_selection.png" width="28%" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/screenshot_05_nfc_write.png" width="28%" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/screenshot_06_qr_code.png" width="28%" />
-</p>
+Upstream TapBlok blocks a chosen set of apps for the length of a focus session — all of them,
+all at once, until you end the session. TapBlok Plus keeps that physical-tag philosophy but
+changes the model underneath: **every controlled app carries its own budget.**
+
+- Use YouTube for its 25-minute session limit → *YouTube* locks. Instagram is untouched.
+- Hit an app's daily cap → it's done for the day; only the daily reset brings it back.
+- A locked app frees itself once you've left it alone for its reset time — or instantly when
+  you tap the tag.
+
+It installs as a **separate app** (`com.tj.tapblok`) so it can live alongside the original.
 
 ---
 
 ## ✨ Features
 
-- **🏷️ NFC Tag Support** — Write TapBlok's token to any NDEF-compatible tag (NTAG213/215/216, under $1 each). Tap to toggle a session.
-- **📷 QR Code Support** — Generate a QR code in-app and print it. Hide it somewhere that requires real effort to reach. Every install gets its own unique code.
-- **🔐 Strict Mode** — Sessions can only be stopped by scanning with TapBlok open. Scanning on a block screen grants a short timed unlock for that one app instead of ending the session.
-- **🔒 Block Any App** — Choose any launchable app on your device. Critical system apps (dialer, camera, settings, launcher) are permanently excluded so you can't lock yourself out.
-- **☕ Smart Breaks** — Take five-minute breaks without ending the session. Choose how many per session (0–5) in Settings.
-- **🔁 Boot Persistence** — If your device restarts mid-session, TapBlok picks right back up.
-- **🚨 Emergency Override** — Lost your tag? A hold-to-stop last resort. Set the hold anywhere from 30 seconds to 15 minutes, or disable it entirely for strict sessions.
-- **⏰ Scheduled Blocking** — Sessions start (and optionally stop) automatically on the days and times you choose.
-- **🤖 Automation Ready** — Opt-in broadcast actions let Tasker, MacroDroid, or Samsung Routines start and stop sessions.
-- **📊 Attempt Counter** — See how many times you tried to open a blocked app. Accountability you can't ignore.
-- **⚡ App Shortcut** — Long-press the TapBlok icon to start a session instantly.
-- **🔓 Open Source** — Every line of code is on GitHub. No black boxes, ever.
-- **🆓 Completely Free** — No subscription, no in-app purchases, no tracking, no cloud.
+### Per-app limits
+- **⏱️ Session limit** — continuous-use budget per app (e.g. 25 min). Time only counts while
+  the app is actually on screen — a locked phone in your pocket accrues nothing.
+- **📅 Daily cap** — a cumulative daily ceiling per app. **Absolute:** nothing but the daily
+  rollover clears it — not even the tag. The day boundary is a time *you* pick (default 04:00,
+  not midnight, so late-night scrolling doesn't get a fresh budget at the worst moment).
+- **🔁 Reset time** — one number that does double duty: the cooldown after a lock, and the
+  idle gap that clears a part-used session.
+- **🎚️ Defaults + overrides** — set global default limits once; every app inherits them live.
+  Override any single app, and see at a glance whether a value is inherited or pinned.
+- **👥 App groups** — put several apps on **one shared budget** (e.g. a "Short video" group
+  over TikTok, Instagram and YouTube). Closes the loophole of app-hopping to dodge a limit.
+
+### Unlocking
+- **🏷️ NFC tag** — tap any NDEF tag to free a locked app. Per app, the tag either starts a
+  **fresh session** or grants a **timed unlock window**. The tag never touches the daily cap.
+- **⏳ Wait it out** — or just leave the app alone for its reset time; whichever comes first.
+- **📷 QR code** — a printable per-install code as a tag alternative.
+
+### Guardrails
+- **🔐 Strict mode** — a session can only be stopped by scanning with TapBlok Plus open, and
+  strict mode is hardened so an automation broadcast can't quietly end it.
+- **📍 Geofenced strict mode** — because your tag lives at home, strict mode can be set to
+  apply *only near home*, so you're never locked out with no way to comply while you're out.
+  On-demand location only — no background tracking, no Google Play Services.
+- **📟 Usage notice** — an optional on-screen chip ("Used 5 of 25 session, 30 of 120 daily")
+  while a controlled app is open.
+- **⏯️ Pause blocked media** — optionally pause a blocked app that keeps playing in a
+  picture-in-picture window (needs notification access; reads no notifications).
+- **🔒 Safety list** — dialer, camera, settings and launcher can never be blocked.
+
+### Kept from upstream
+Smart breaks · boot persistence · emergency override · scheduled blocking · opt-in automation ·
+attempt counter · app shortcut.
+
+### Companion API
+Exposes read-only session state (`SessionStateProvider` + `SESSION_STARTED`/`STOPPED`
+broadcasts) to apps signed with the same key, so a companion can enforce alongside a session.
 
 ---
 
 ## 🚀 Getting Started
 
-1. **Install** — Download the APK from the [latest release](https://github.com/cajdata/TapBlok/releases/latest) and install it.
-2. **Grant permissions** — Usage Access and Display Over Other Apps are required. TapBlok will prompt you.
-3. **Pick your apps** — Tap "Manage Blocked Apps" and select the apps you want to block.
-4. **Set up your unlock method** — Write an NFC tag in-app, or generate a QR code and print it.
-5. **Start a session** — Tap "Start Monitoring" and put the tag somewhere out of arm's reach.
-
-### NFC Tags
-
-Any NDEF-compatible NFC tag works. Personally, I use and recommend these [NTAG215 NFC sticker tags (black, adhesive)](https://amzn.to/418E7nb) — they're low-profile, stick well, and the black color blends in wherever you put them. A pack of 10 is a few dollars.
-
-1. Tap **Write NFC Tag** in the app
-2. Hold your tag to the back of your phone
-3. Done — place the tag somewhere that adds friction (not next to your phone)
-
-> As an Amazon Associate I earn from qualifying purchases.
-
-### QR Code
-
-1. Tap **Show QR Code** in the app
-2. Screenshot or print it
-3. Put it somewhere that requires getting up — another room, your wallet, your desk drawer
-
-> **Upgrading from before v1.5.0?** QR codes are now unique per install. Print a new one — codes from older versions (or other phones) no longer work.
-
-### Strict Mode
-
-Enable **Settings → Strict Mode** and a running session can only be stopped by opening TapBlok first, then scanning your tag or QR code. Scanning on a block screen doesn't end the session — it unlocks just that one app for a limited time (1–30 minutes, your choice). Combine with zero breaks and a disabled emergency override for maximum friction.
-
-### Scheduled Blocking
-
-Open **Settings → Scheduled Blocking** to start sessions automatically — pick a start time, an optional auto-stop time, and the days of the week. Overnight windows (e.g. 22:00–07:00) work, and schedules survive reboots.
+1. **Build & install** — see [Building](#-building) below. (No published releases yet.)
+2. **Grant permissions** — Usage Access and Display Over Other Apps. TapBlok Plus prompts you.
+3. **Pick your apps** — "Manage Blocked Apps", then tap the tune icon on any app to set its limits.
+4. **Set defaults** — Settings → Default limits sets the template every app inherits.
+5. **Set up unlock** — write an NFC tag in-app, or print a QR code.
+6. **Start a session** — tap "Start Monitoring" and put the tag somewhere out of arm's reach.
 
 ### Automation (Tasker, MacroDroid, Samsung Routines)
 
-Enable **Settings → Allow automation apps**, then have your automation app send a broadcast:
+Enable **Settings → Allow automation apps**, then send a broadcast:
 
 ```
 # Start a session
-am broadcast -n com.cj.tapblok/.ScheduleReceiver -a com.cj.tapblok.SCHEDULE_START
+am broadcast -n com.tj.tapblok/com.cj.tapblok.ScheduleReceiver -a com.tj.tapblok.SCHEDULE_START
 
 # Stop a session
-am broadcast -n com.cj.tapblok/.ScheduleReceiver -a com.cj.tapblok.SCHEDULE_STOP
+am broadcast -n com.tj.tapblok/com.cj.tapblok.ScheduleReceiver -a com.tj.tapblok.SCHEDULE_STOP
 ```
 
-In Tasker: **System → Send Intent** with Action `com.cj.tapblok.SCHEDULE_START` (or `SCHEDULE_STOP`), Package `com.cj.tapblok`, Class `com.cj.tapblok.ScheduleReceiver`, Target `Broadcast Receiver`. This opens up location-based blocking, calendar-triggered sessions, and similar automations. External triggers are ignored unless the toggle is on.
+External triggers are ignored unless the toggle is on, and **strict mode ignores stop
+requests from automation** — only the tag ends a strict session.
+
+> Note: the source package stayed `com.cj.tapblok` (to keep merges from upstream clean) while
+> the installed app id is `com.tj.tapblok` — hence the mixed names in the component path above.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Building
 
-Built entirely in Kotlin using modern Android development practices.
+Standard Gradle Android build. Kotlin 2.4.10 · AGP 8.13.2 · minSdk 24 · compileSdk 36.
+
+```
+./gradlew assembleDebug
+```
+
+For a signed release, add your keystore to `local.properties`:
+`RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`.
+
+---
+
+## 🧱 Architecture
+
+Kotlin · Jetpack Compose · Material 3 · Room · Coroutines · ZXing · Coil.
 
 | Component | Purpose |
 |---|---|
-| `AppMonitoringService` | Foreground service — polls the foreground app every second, launches `BlockingActivity` on a match |
-| `BlockingActivity` | Full-screen overlay shown when a blocked app is detected |
-| `AppSelectionActivity` | Lets users pick which apps to block |
-| `NfcHandlerActivity` | Toggles the service when a TapBlok NFC tag is scanned |
-| `NfcWriteActivity` | Writes TapBlok's NDEF record to an NFC tag |
-| `QrCodeActivity` | Generates and displays the unlock QR code |
-| `BootCompletedReceiver` | Restarts the service after device reboot if a session was active |
+| `AppMonitoringService` | Foreground service — folds the usage-event stream into real intervals, bills each to its budget scope, and shows the block screen when a scope is out |
+| `usage/` | Pure, unit-tested core: `ForegroundTracker`, `UsageAccountant`, lock evaluation |
+| `AppSelectionActivity` / `AppOverrideActivity` | Pick apps; set per-app limits |
+| `AppGroupsActivity` / `AppGroupEditActivity` | Shared-budget groups |
+| `SettingsActivity` | Defaults, strict mode, geofence, usage notice, schedule, automation |
+| `HomeGeofence` | On-demand "am I home?" for geofenced strict mode |
+| `BlockingActivity` | Full-screen block screen; explains *why*, and whether the tag will help |
+| `NfcHandlerActivity` / `NfcWriteActivity` / `QrCodeActivity` | Unlock credentials |
+| `SessionStateProvider` | Signature-protected session-state API for companion apps |
+| `database/` | Room schema v2 — `BlockedApp`, `AppGroup`, `ScopeUsage` |
 
-**Stack:** Jetpack Compose · Material 3 · Room · Kotlin Coroutines · ZXing · Coil
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome.
-
-1. Fork the repo
-2. Create a feature branch
-3. Commit your changes
-4. Open a Pull Request
+Usage is keyed by **budget scope** (a group if the app is in one, else the app itself), which
+is what lets one tag tap free a whole group and makes the shared-budget model work.
 
 ---
+
+## 🙏 Upstream
+
+Built on [cajdata/TapBlok](https://github.com/cajdata/TapBlok), which solved the hard
+infrastructure — the permission flow, NFC read/write, the overlay block screen, boot
+persistence, and the safety-list exclusions. TapBlok Plus tracks it as an upstream remote and
+pulls its fixes.
 
 ## 📄 License
 
-Apache 2.0 — see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  Made in Denver, CO 🏔️
-</p>
+Apache 2.0 — see [LICENSE](LICENSE). Same license as upstream.
