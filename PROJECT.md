@@ -1,4 +1,4 @@
-# TapBlok — Per-App Usage Limits (fork: TeeJS/TapBlok)
+# TapBlok Plus — Per-App Usage Limits (fork: TeeJS/TapBlokPlus)
 
 **Status:** DRAFT — awaiting sign-off. No code written yet.
 **Base:** v1.5.1, identical to upstream `cajdata/TapBlok` at time of fork.
@@ -56,7 +56,7 @@ wrong app:
 
 - **Backup:** covered by git. Work happens on a feature branch off `main`; `main` stays
   clean at upstream parity. An `upstream` remote is configured for pulling cajdata's fixes.
-- **Deployment target:** GitHub releases on the `TeeJS/TapBlok` fork. Not Play, not
+- **Deployment target:** GitHub releases on the `TeeJS/TapBlokPlus` fork. Not Play, not
   F-Droid, no upstream PR to cajdata.
 
 Consequences of releasing on the fork:
