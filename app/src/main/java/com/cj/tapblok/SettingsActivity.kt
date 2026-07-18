@@ -375,7 +375,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
         SettingsSection(title = "Strict Mode") {
             SettingsSwitchRow(
                 label = "Strict mode",
-                caption = "A session can only be stopped by scanning with TapBlok open. " +
+                caption = "A session can only be stopped by scanning with TapBlok Plus open. " +
                         "Unlocking a single blocked app works either way — see “What the tag does” above.",
                 checked = strictMode,
                 enabled = editable,
@@ -409,7 +409,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 if (geofenceEnabled) {
                     if (!HomeGeofence.hasPermission(context)) {
                         Text(
-                            text = "Location permission is needed. Without it, TapBlok can't tell " +
+                            text = "Location permission is needed. Without it, TapBlok Plus can't tell " +
                                 "whether you're home, and strict mode won't apply.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
@@ -465,14 +465,14 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     Text(
                         text = "Shown in metres, not minutes. 150m leans on Wi-Fi being on at " +
                             "home, where a fix is usually accurate to 20–50m. With Wi-Fi off and " +
-                            "GPS cold indoors, fixes are often only accurate to 500m+ — TapBlok " +
+                            "GPS cold indoors, fixes are often only accurate to 500m+ — TapBlok Plus " +
                             "rejects those rather than guess, and treats you as away. If that " +
                             "happens too often, raise this rather than trust a vaguer fix.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "If TapBlok can't tell where you are, it treats you as away and " +
+                        text = "If TapBlok Plus can't tell where you are, it treats you as away and " +
                             "strict mode doesn't apply — so you're never stranded. The trade-off " +
                             "is that turning location off also turns strict mode off.",
                         style = MaterialTheme.typography.bodySmall,
@@ -665,7 +665,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                     "On. A blocked app playing in picture-in-picture will be paused."
                 } else {
                     "Off. A blocked app can keep playing in a picture-in-picture window. " +
-                        "Needs notification access — TapBlok reads no notifications, it only " +
+                        "Needs notification access — TapBlok Plus reads no notifications, it only " +
                         "uses the pause control."
                 },
                 checked = mediaAccessGranted,

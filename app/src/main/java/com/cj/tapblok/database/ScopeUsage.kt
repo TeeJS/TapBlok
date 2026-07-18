@@ -14,7 +14,7 @@ import androidx.room.PrimaryKey
  * and reschedules itself from `onTaskRemoved`, so it routinely comes back with fresh
  * process state; the old in-memory `temporarilyUnlockedApps` map simply forgot its unlocks
  * on restart. Holding a cooldown that way would silently re-lock an app, and holding daily
- * usage that way would make "swipe TapBlok off recents" a one-gesture daily-cap reset.
+ * usage that way would make "swipe TapBlok Plus off recents" a one-gesture daily-cap reset.
  *
  * All timestamps are `System.currentTimeMillis()` epoch millis. That means moving the device
  * clock forward can skip a cooldown or roll the day over early. For a self-control app

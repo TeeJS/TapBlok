@@ -56,7 +56,7 @@ class NfcHandlerActivity : ComponentActivity() {
             return
         }
 
-        Log.d("NfcHandlerActivity", "Valid TapBlok NFC tag detected.")
+        Log.d("NfcHandlerActivity", "Valid TapBlok Plus NFC tag detected.")
         handleValidTag()
     }
 
@@ -70,7 +70,7 @@ class NfcHandlerActivity : ComponentActivity() {
 
         // Snapshot what the user was looking at NOW, before anything suspends. The strict-mode
         // decision below can wait several seconds on a location fix, and AppForeground's
-        // visibility grace is only 5s — judged after the wait, a legitimate "TapBlok open, tag
+        // visibility grace is only 5s — judged after the wait, a legitimate "TapBlok Plus open, tag
         // tapped" stop looked like a background scan and was refused. What matters is the
         // moment of the tap, not the moment the geofence finishes thinking.
         val blockingVisible = AppForeground.isBlockingVisible()
@@ -102,11 +102,11 @@ class NfcHandlerActivity : ComponentActivity() {
                 unlockBlockedApp(blockedPackage)
             // Anywhere else, the tag is a session-level control.
             !strictMode -> stopSession()
-            // Stopping the whole session in strict mode requires TapBlok itself to be open
+            // Stopping the whole session in strict mode requires TapBlok Plus itself to be open
             mainVisible -> stopSession()
             else -> {
-                Log.w("NfcHandlerActivity", "Strict mode refused background scan — TapBlok wasn't open at tap time.")
-                Toast.makeText(this, "Strict mode: open TapBlok, then scan again to stop.", Toast.LENGTH_LONG).show()
+                Log.w("NfcHandlerActivity", "Strict mode refused background scan — TapBlok Plus wasn't open at tap time.")
+                Toast.makeText(this, "Strict mode: open TapBlok Plus, then scan again to stop.", Toast.LENGTH_LONG).show()
                 showStrictModeNotification()
             }
         }
@@ -146,7 +146,7 @@ class NfcHandlerActivity : ComponentActivity() {
         val notification = NotificationCompat.Builder(this, AppMonitoringService.CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Strict mode is on")
-            .setContentText("Open TapBlok, then scan your tag again to stop the session.")
+            .setContentText("Open TapBlok Plus, then scan your tag again to stop the session.")
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .build()

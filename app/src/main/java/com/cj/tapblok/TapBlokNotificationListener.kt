@@ -8,7 +8,7 @@ import android.service.notification.NotificationListenerService
  * This class exists for one reason: `MediaSessionManager.getActiveSessions()` requires its
  * caller to be an *enabled notification listener* (or to hold the system-only
  * MEDIA_CONTENT_CONTROL permission). Being enabled is the key; reading notifications is not
- * the point, and TapBlok never does.
+ * the point, and TapBlok Plus never does.
  *
  * That capability is what lets [MediaPauser] stop a blocked app that has dropped into
  * picture-in-picture and kept playing over the block screen — see PROJECT.md §10a. Nothing

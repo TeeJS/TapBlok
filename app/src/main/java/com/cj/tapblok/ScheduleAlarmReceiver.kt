@@ -6,7 +6,7 @@ import android.content.Intent
 import android.util.Log
 
 /**
- * Receives TapBlok's own scheduled-blocking alarms, and nothing else.
+ * Receives TapBlok Plus's own scheduled-blocking alarms, and nothing else.
  *
  * This receiver is not exported, so only ScheduleManager's PendingIntents can reach it.
  * That routing *is* the trust boundary: previously both alarms and external automation

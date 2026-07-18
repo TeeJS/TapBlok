@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TapBlok"
+rootProject.name = "TapBlokPlus"
 include(":app")

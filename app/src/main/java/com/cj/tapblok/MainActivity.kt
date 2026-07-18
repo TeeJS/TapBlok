@@ -106,7 +106,7 @@ fun MainScreen() {
         contract = ActivityResultContracts.RequestPermission()
     ) { }
 
-    // Without POST_NOTIFICATIONS on Android 13+ the persistent "TapBlok is Active"
+    // Without POST_NOTIFICATIONS on Android 13+ the persistent "TapBlok Plus is Active"
     // notification never shows, leaving users with no visible running indicator
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
@@ -134,7 +134,7 @@ fun MainScreen() {
         } else if (result.contents == QrCodeActivity.LEGACY_QR_CONTENT) {
             Toast.makeText(
                 context,
-                "That QR code is from an older TapBlok version. Print a new one from \"Show QR Code\".",
+                "That QR code is from an older TapBlok Plus version. Print a new one from \"Show QR Code\".",
                 Toast.LENGTH_LONG
             ).show()
         } else if (result.contents != null) {
@@ -202,7 +202,7 @@ fun MainScreen() {
                 // Header
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "TapBlok",
+                        text = "TapBlok Plus",
                         style = MaterialTheme.typography.headlineLarge
                     )
                     Text(
@@ -395,7 +395,7 @@ fun MainScreen() {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "TapBlok needs a few permissions to monitor and block apps.",
+                    text = "TapBlok Plus needs a few permissions to monitor and block apps.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center

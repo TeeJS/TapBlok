@@ -56,7 +56,7 @@ class BlockingActivity : ComponentActivity() {
             QrCodeActivity.LEGACY_QR_CONTENT ->
                 Toast.makeText(
                     this,
-                    "That QR code is from an older TapBlok version. Print a new one from \"Show QR Code\".",
+                    "That QR code is from an older TapBlok Plus version. Print a new one from \"Show QR Code\".",
                     Toast.LENGTH_LONG
                 ).show()
             else -> Toast.makeText(this, "Incorrect QR Code", Toast.LENGTH_SHORT).show()
