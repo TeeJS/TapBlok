@@ -33,7 +33,7 @@
     <uses-permission android:name="android.permission.NFC" />
 
     <!-- Foreground-only, and optional. Strict mode is evaluated when the block screen appears
-         or a tag is scanned, and TapBlok is on screen for both — so it asks once, then, rather
+         or a tag is scanned, and TapBlok Plus is on screen for both — so it asks once, then, rather
          than registering a geofence. That's why there's no ACCESS_BACKGROUND_LOCATION here:
          nothing needs location while the app is away. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -178,7 +178,7 @@
 
         <!-- Optional, and never enabled by default. Being an enabled notification listener
              is the only way an ordinary app can call MediaSessionManager.getActiveSessions(),
-             which is what lets TapBlok pause a blocked app still playing in
+             which is what lets TapBlok Plus pause a blocked app still playing in
              picture-in-picture. The service reads no notifications — see the class doc. -->
         <service
             android:name=".TapBlokNotificationListener"
