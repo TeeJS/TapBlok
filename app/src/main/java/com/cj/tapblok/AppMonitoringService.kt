@@ -100,6 +100,15 @@ class AppMonitoringService : Service() {
 
         /** [LockState] name, so the block screen can say *why* — and whether the tag will help. */
         const val EXTRA_LOCK_REASON = "com.cj.tapblok.extra.LOCK_REASON"
+
+        /**
+         * Session lifecycle, pushed to same-signature companions (scroll-blocker) under
+         * [SessionStateProvider.READ_PERMISSION]. Implicit broadcasts — a companion must
+         * listen from a runtime-registered receiver and use [SessionStateProvider] for its
+         * initial state; Android won't wake another app's manifest receiver for these.
+         */
+        const val ACTION_SESSION_STARTED = "com.tj.tapblok.SESSION_STARTED"
+        const val ACTION_SESSION_STOPPED = "com.tj.tapblok.SESSION_STOPPED"
         private const val INITIAL_EVENT_LOOKBACK_MS = 60 * 60 * 1000L
         @Volatile var isRunning = false
     }
@@ -135,6 +144,9 @@ class AppMonitoringService : Service() {
             putInt("blocked_app_attempts", 0)
             putBoolean("monitoring_active", true)
         }
+        // Fires on service restarts too, not just fresh sessions — companions must treat it
+        // as idempotent ("a session is in force"), not as an edge trigger
+        sendBroadcast(Intent(ACTION_SESSION_STARTED), SessionStateProvider.READ_PERMISSION)
 
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -359,6 +371,7 @@ class AppMonitoringService : Service() {
         isRunning = false
         noticeState.hide()
         prefs.edit { putBoolean("monitoring_active", false) }
+        sendBroadcast(Intent(ACTION_SESSION_STOPPED), SessionStateProvider.READ_PERMISSION)
         serviceScope.cancel()
         breakTimer?.cancel()
         Log.d("AppMonitoringService", "Service has been destroyed.")

@@ -8,6 +8,12 @@
         android:name="com.tj.tapblok.permission.START_MONITORING"
         android:protectionLevel="signature" />
 
+    <!-- Session-state read access for same-signature companion apps (scroll-blocker).
+         Signature-level: invisible to anything not signed with this fork's key. -->
+    <permission
+        android:name="com.tj.tapblok.permission.READ_SESSION_STATE"
+        android:protectionLevel="signature" />
+
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
@@ -160,6 +166,15 @@
         <receiver
             android:name=".ScheduleAlarmReceiver"
             android:exported="false" />
+
+        <!-- Session-state query surface for same-signature companions. readPermission guards
+             the query path; SessionStateProvider.call() enforces the same permission itself,
+             because call() bypasses manifest permission enforcement (documented Android gap). -->
+        <provider
+            android:name=".SessionStateProvider"
+            android:authorities="com.tj.tapblok.state"
+            android:exported="true"
+            android:readPermission="com.tj.tapblok.permission.READ_SESSION_STATE" />
 
         <!-- Optional, and never enabled by default. Being an enabled notification listener
              is the only way an ordinary app can call MediaSessionManager.getActiveSessions(),
