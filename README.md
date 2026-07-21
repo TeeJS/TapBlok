@@ -2,7 +2,7 @@
   <img src="docs/icon.png" width="120" style="border-radius: 24px" />
 </p>
 
-<h1 align="center">TapBlok</h1>
+<h1 align="center">TapBlokPlus</h1>
 
 <p align="center">
   <strong>Block distracting apps — the physical way.</strong>
