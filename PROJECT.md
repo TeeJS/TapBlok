@@ -1,4 +1,4 @@
-# TapBlok Plus — Per-App Usage Limits (fork: TeeJS/TapBlokPlus)
+# TapBlokPlus — Per-App Usage Limits (fork: TeeJS/TapBlokPlus)
 
 **Status:** SHIPPED — per-app usage limits, daily caps, app groups, geofenced strict mode,
 the usage notice, and the companion API are built and in use on the fork.
@@ -27,10 +27,10 @@ wrong app:
 - **Defaults are a template, not a pool.** A global default of 25 minutes across four apps
   means four independent 25-minute budgets, not 25 shared.
 - **Both unlock paths work independently.** A build where only NFC frees the lock is
-  today's TapBlok Plus. A build where only the timer frees it removes the point of the tag.
+  today's TapBlokPlus. A build where only the timer frees it removes the point of the tag.
 - **Time survives process death.** Usage counters and cooldowns must be correct across
   service restart, task-swipe, and reboot. Counters held in memory would make
-  "swipe TapBlok Plus away" a one-gesture daily-cap reset.
+  "swipe TapBlokPlus away" a one-gesture daily-cap reset.
 - **Usage means usage.** Time must not accrue while the screen is off, while the app is
   backgrounded, or while the block screen is covering it.
 - **The daily cap is absolute.** Nothing but the daily rollover clears it.
@@ -116,7 +116,7 @@ Each of these is a manual acceptance test on a real device:
 8. Hit the block screen, poke at YouTube every 10 min for 90 min → still unlocks at 90
    min from the *lock*, not from the last poke.
 9. Hit the daily cap → tag does nothing, and the block screen says why.
-10. Lock YouTube, force-stop TapBlok Plus, reopen → cooldown and counters intact.
+10. Lock YouTube, force-stop TapBlokPlus, reopen → cooldown and counters intact.
 11. Lock YouTube, reboot → cooldown and counters intact.
 12. Away from home, strict mode does not apply. At home, it does.
 13. Turn location off → treated as away.
@@ -154,7 +154,7 @@ resolves silently to *strict mode off*. So fixes are filtered before use:
 
 1. Reject any fix whose `accuracy` is worse than the radius (150m).
 2. Reject any fix older than 5 minutes.
-3. If the cached fix is rejected, request **one fresh fix, ~10s timeout**. TapBlok Plus is
+3. If the cached fix is rejected, request **one fresh fix, ~10s timeout**. TapBlokPlus is
    foreground at this moment, so a brief spinner on the block screen is acceptable.
 4. If that also fails → unknown → away.
 
@@ -180,7 +180,7 @@ mid-day.
 
 Strict mode is only ever evaluated at two moments — when the block screen appears
 (`BlockingActivity.kt:76`) and when a tag is scanned (`NfcHandlerActivity.kt:60`). Both are
-Activities; TapBlok Plus is in the foreground exactly when the answer matters. So we check
+Activities; TapBlokPlus is in the foreground exactly when the answer matters. So we check
 location on demand with `ACCESS_FINE_LOCATION` only. No `ACCESS_BACKGROUND_LOCATION`, no
 geofence registration, no reboot re-registration, no OEM battery-optimizer failures.
 
@@ -194,7 +194,7 @@ with the emergency override as the backstop.
 
 `getForegroundApp()` (`AppMonitoringService.kt:206`) consumes only `MOVE_TO_FOREGROUND`
 events and **never clears `currentForegroundApp`**. It is sticky — it holds the last app
-that came forward indefinitely. Lock the phone in YouTube and TapBlok Plus still believes
+that came forward indefinitely. Lock the phone in YouTube and TapBlokPlus still believes
 YouTube is foreground while it sits in your pocket.
 
 Harmless for today's binary blocking. **Fatal for usage accounting.**
@@ -545,16 +545,16 @@ Use one of these instead:
 
 ## 11. The `ScheduleReceiver` hole, in plain terms
 
-Android lets apps send each other messages. TapBlok Plus has one of these message-handlers
+Android lets apps send each other messages. TapBlokPlus has one of these message-handlers
 sitting on the outside of the app, and one of the things you can say to it is
-*"stop blocking."* TapBlok Plus obeys. That handler is `ScheduleReceiver`.
+*"stop blocking."* TapBlokPlus obeys. That handler is `ScheduleReceiver`.
 
 It exists for a good reason: it's how Tasker, MacroDroid, and Samsung Routines start and
-stop sessions, and it's how TapBlok Plus's own scheduled-blocking alarms fire.
+stop sessions, and it's how TapBlokPlus's own scheduled-blocking alarms fire.
 
 There's meant to be a lock on it — the "Allow automation apps" setting, off by default.
-**The lock doesn't work.** The message can carry a flag saying "I'm TapBlok Plus's own alarm
-clock, not an outsider", and TapBlok Plus takes that at face value (`ScheduleReceiver.kt:28-34`).
+**The lock doesn't work.** The message can carry a flag saying "I'm TapBlokPlus's own alarm
+clock, not an outsider", and TapBlokPlus takes that at face value (`ScheduleReceiver.kt:28-34`).
 Anything can set that flag. So the setting protects nothing.
 
 **What it means concretely:** any app on your phone, or one `adb` command, can end a
@@ -568,7 +568,7 @@ front door.
 
 **Why it might not be fine for you:** uninstalling is deliberate, effortful, and you'd
 notice yourself doing it. A broadcast is something you set up *once*, in a weak moment,
-and then it's a silent one-tap bypass forever. TapBlok Plus's entire thesis is friction, and
+and then it's a silent one-tap bypass forever. TapBlokPlus's entire thesis is friction, and
 those two have very different amounts of it.
 
 **The fix — decided, in scope.** Not locking the receiver down: a signature-level

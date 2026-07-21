@@ -13,7 +13,7 @@ import android.util.Log
  * This receiver is exported and unauthenticated, so anything it honours is something any
  * app on the device can do. Two consequences are load-bearing:
  *
- * 1. TapBlok Plus's own schedule alarms deliberately do not arrive here — they target the
+ * 1. TapBlokPlus's own schedule alarms deliberately do not arrive here — they target the
  *    non-exported ScheduleAlarmReceiver. The old EXTRA_FROM_ALARM boolean that
  *    distinguished them was settable by any caller, so it skipped the automation check
  *    below entirely.

@@ -18,7 +18,7 @@ class App : Application() {
         trackForegroundForStrictMode()
     }
 
-    // Strict mode allows stopping a session only while the user is inside TapBlok Plus.
+    // Strict mode allows stopping a session only while the user is inside TapBlokPlus.
     // Any of our screens counts, except the invisible handlers and the block screen
     // (which has its own tracking so tag scans there unlock a single app instead)
     private fun trackForegroundForStrictMode() {

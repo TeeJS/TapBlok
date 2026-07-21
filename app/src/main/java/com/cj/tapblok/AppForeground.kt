@@ -1,7 +1,7 @@
 package com.cj.tapblok
 
 /**
- * Tracks which TapBlok Plus screens are currently visible so NfcHandlerActivity can tell a
+ * Tracks which TapBlokPlus screens are currently visible so NfcHandlerActivity can tell a
  * foreground scan from a background one in strict mode. The NFC intent pauses the
  * underlying activity before the handler starts, so "paused a moment ago" still counts
  * as foreground.

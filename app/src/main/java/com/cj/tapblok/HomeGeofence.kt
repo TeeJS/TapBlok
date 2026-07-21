@@ -20,7 +20,7 @@ enum class Presence { HOME, AWAY }
  * from it.
  *
  * **No geofence, and no background location.** Strict mode is only ever evaluated at two
- * moments — when the block screen appears and when a tag is scanned — and TapBlok Plus is in the
+ * moments — when the block screen appears and when a tag is scanned — and TapBlokPlus is in the
  * foreground for both. So this asks once, at that instant, with plain `ACCESS_FINE_LOCATION`.
  * That removes the whole apparatus a geofence would need: no registration, no re-registration
  * after reboot, no OEM battery-optimiser roulette, and no `ACCESS_BACKGROUND_LOCATION`, which
@@ -89,7 +89,7 @@ object HomeGeofence {
 
     /**
      * A cached fix if it's recent and accurate enough to answer the question, otherwise one
-     * fresh fix with a short timeout. TapBlok Plus is on screen at this point, so a brief wait is
+     * fresh fix with a short timeout. TapBlokPlus is on screen at this point, so a brief wait is
      * acceptable; being wrong is not.
      */
     private suspend fun bestFix(context: Context, radiusMetres: Int): Location? {

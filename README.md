@@ -2,7 +2,7 @@
   <img src="docs/icon.png" width="120" style="border-radius: 24px" />
 </p>
 
-<h1 align="center">TapBlok Plus</h1>
+<h1 align="center">TapBlokPlus</h1>
 
 <p align="center">
   <strong>Per-app usage limits, unlocked by a physical tag.</strong>
@@ -23,7 +23,7 @@
 ## Why "Plus"
 
 Upstream TapBlok blocks a chosen set of apps for the length of a focus session — all of them,
-all at once, until you end the session. TapBlok Plus keeps that physical-tag philosophy but
+all at once, until you end the session. TapBlokPlus keeps that physical-tag philosophy but
 changes the model underneath: **every controlled app carries its own budget.**
 
 - Use YouTube for its 25-minute session limit → *YouTube* locks. Instagram is untouched.
@@ -57,7 +57,7 @@ It installs as a **separate app** (`com.tj.tapblok`) so it can live alongside th
 - **📷 QR code** — a printable per-install code as a tag alternative.
 
 ### Guardrails
-- **🔐 Strict mode** — a session can only be stopped by scanning with TapBlok Plus open, and
+- **🔐 Strict mode** — a session can only be stopped by scanning with TapBlokPlus open, and
   strict mode is hardened so an automation broadcast can't quietly end it.
 - **📍 Geofenced strict mode** — because your tag lives at home, strict mode can be set to
   apply *only near home*, so you're never locked out with no way to comply while you're out.
@@ -81,7 +81,7 @@ broadcasts) to apps signed with the same key, so a companion can enforce alongsi
 ## 🚀 Getting Started
 
 1. **Build & install** — see [Building](#-building) below. (No published releases yet.)
-2. **Grant permissions** — Usage Access and Display Over Other Apps. TapBlok Plus prompts you.
+2. **Grant permissions** — Usage Access and Display Over Other Apps. TapBlokPlus prompts you.
 3. **Pick your apps** — "Manage Blocked Apps", then tap the tune icon on any app to set its limits.
 4. **Set defaults** — Settings → Default limits sets the template every app inherits.
 5. **Set up unlock** — write an NFC tag in-app, or print a QR code.
@@ -146,7 +146,7 @@ is what lets one tag tap free a whole group and makes the shared-budget model wo
 
 Built on [cajdata/TapBlok](https://github.com/cajdata/TapBlok), which solved the hard
 infrastructure — the permission flow, NFC read/write, the overlay block screen, boot
-persistence, and the safety-list exclusions. TapBlok Plus tracks it as an upstream remote and
+persistence, and the safety-list exclusions. TapBlokPlus tracks it as an upstream remote and
 pulls its fixes.
 
 ## 📄 License

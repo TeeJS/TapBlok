@@ -8,12 +8,12 @@ import android.net.Uri
 import android.os.Bundle
 
 /**
- * Lets companion apps ask "is a TapBlok Plus session active right now?" — built for
- * ShortBlock, which enforces its Shorts/Reels blocking only while TapBlok Plus is enforcing
+ * Lets companion apps ask "is a TapBlokPlus session active right now?" — built for
+ * ShortBlock, which enforces its Shorts/Reels blocking only while TapBlokPlus is enforcing
  * app limits, so one tag tap governs both apps.
  *
  * Read access requires [READ_PERMISSION], a signature-level permission: only apps signed
- * with the same key as TapBlok Plus can hold it, so this surface is invisible to everything else
+ * with the same key as TapBlokPlus can hold it, so this surface is invisible to everything else
  * on the device. The manifest's readPermission guards the query path, but
  * [ContentProvider.call] does NOT go through that enforcement — a documented Android gap —
  * so [call] checks the caller's permission itself. Both checks matter; neither alone covers
